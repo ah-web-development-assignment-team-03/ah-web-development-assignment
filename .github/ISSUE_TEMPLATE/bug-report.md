@@ -32,12 +32,12 @@ assignees: ''
 ## 📱 실행 환경
 
 - **Device**: 
-- **iOS Version**: 
+- **Version**: 
 
 
 ## ℹ️ 앱 정보
 
-> TestFlight 앱에서 앱 아이콘을 길게 누르거나, 앱 상세 페이지에서 확인할 수 있어요.
+> Test 웹 상세 페이지에서 확인할 수 있어요.
 
-- **App Version**:
+- **Web Version**:
 - **Build Number**:
