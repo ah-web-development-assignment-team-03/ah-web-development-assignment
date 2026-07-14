@@ -31,4 +31,13 @@ user_list = [
     }
 ]
 
-
+# API 5: Delete user
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(user_id: int):
+    """회원의 정보를 삭제"""
+    global user_list
+    for i, user in enumerate(user_list):
+        if user["id"] == user_id:
+            user_list.pop(i)
+            return
+    raise HTTPException(status_code=404, detail="사용자를 찾을 수 없음")
