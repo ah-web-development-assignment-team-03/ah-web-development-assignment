@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional
 
+# 유저 조회 스키마 정의
+from app.apis.schema import User
+
 # Initialize router
 router = APIRouter(prefix="/practice_api", tags=["practice"])
 
@@ -31,4 +34,27 @@ user_list = [
     }
 ]
 
+# 모든 회원 조회 api
+@router.get(
+    "/users",
+    summary="모든 회원 조회 api",
+    response_model=list[User],
+    status_code=200
+)
+def get_all_users_handler():
+    return user_list
 
+# 특정 회원 조회 api
+@router.get(
+    "/users/{user_id}",
+    summary="특정 회원 조회 api",
+    response_model=User,
+    status_code=200
+)
+def get_user_handler(
+    user_id: int
+):
+    for user in user_list:
+        if user["id"] == user_id:
+            return user
+    raise HTTPException(status_code=404, detail="404 not found")
