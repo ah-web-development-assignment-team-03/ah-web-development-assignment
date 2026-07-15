@@ -19,7 +19,7 @@ class XrayImage(Base):
     # medical_records 테이블의 id 참조
     record_id: Mapped[int] = mapped_column(
         BIGINT_TYPE,
-        ForeignKey("medical_records.id"),
+        ForeignKey("medical_records.id", ondelete="CASCADE"),
         nullable=False,
     )
 
