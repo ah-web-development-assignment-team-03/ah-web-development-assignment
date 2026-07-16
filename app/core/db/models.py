@@ -6,7 +6,6 @@ from sqlalchemy.dialects.mysql import CHAR
 from sqlalchemy.orm import Mapped, mapped_column
 from uuid6 import uuid7
 
-
 class UUIDMixin:
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(
         CHAR(36), primary_key=True, default=uuid7
