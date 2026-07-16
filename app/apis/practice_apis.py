@@ -34,6 +34,17 @@ user_list = [
     }
 ]
 
+# 이메일 형식을 검사하기 위한 정규표현식
+EMAIL_PATTERN = (
+    r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+)
+
+# 비밀번호를 검사하기 위한 정규표현식
+# 영문 대문자, 소문자, 특수문자를 각각 1개 이상 포함
+PASSWORD_PATTERN = (
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{8,20}$"
+)
+
 # 모든 회원 조회 api
 @router.get(
     "/users",
@@ -69,16 +80,92 @@ async def delete_user(user_id: int):
             return
     raise HTTPException(status_code=404, detail="사용자를 찾을 수 없음")
 
-# 이메일 형식을 검사하기 위한 정규표현식
-EMAIL_PATTERN = (
-    r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
-)
+# 회원 생성 요청에서 받을 데이터
+class UserCreate(BaseModel):
+    # 이름은 최소 2글자, 최대 10글자
+    name: str = Field(
+        min_length=2,
+        max_length=10,
+    )
 
-# 비밀번호를 검사하기 위한 정규표현식
-# 영문 대문자, 소문자, 특수문자를 각각 1개 이상 포함
-PASSWORD_PATTERN = (
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{8,20}$"
+    # 나이는 최소 14세 이상
+    age: int = Field(
+        ge=14,
+    )
+
+    # 이메일은 최대 30자 (중복 검사는 API 함수에서 수행)
+    email: str = Field(
+        max_length=30,
+    )
+
+    # 비밀번호는 최소 8자, 최대 20자
+    password: str = Field(
+        min_length=8,
+        max_length=20,
+    )
+
+    # 이메일 형식 검사
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if re.fullmatch(EMAIL_PATTERN, value) is None:
+            raise ValueError("올바른 이메일 형식이 아닙니다.")
+
+        return value
+
+    # 비밀번호 형식 검사
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if re.fullmatch(PASSWORD_PATTERN, value) is None:
+            raise ValueError(
+                "비밀번호에는 대문자, 소문자, "
+                "특수문자가 각각 1개 이상 필요합니다."
+            )
+
+        return value
+
+
+# 회원 생성 API
+@router.post(
+    "/users",
+    summary="회원 생성 api",
+    status_code=201,
 )
+async def create_user(
+    request: UserCreate,
+):
+    """회원의 정보를 Request Body로 입력받아 user_list에 추가"""
+    # 이메일 중복 검사 (중복 불가능)
+    for user in user_list:
+        if user["email"] == request.email:
+            raise HTTPException(
+                status_code=400,
+                detail="이미 사용 중인 이메일입니다.",
+            )
+
+    # id는 자동으로 1씩 증가
+    new_id = max(
+        (user["id"] for user in user_list),
+        default=0,
+    ) + 1
+
+    # 새 회원을 user_list에 추가합니다.
+    new_user = {
+        "id": new_id,
+        **request.model_dump(),
+    }
+    user_list.append(new_user)
+
+    # 생성 결과를 반환합니다.
+    # 비밀번호는 응답에서 제외합니다.
+    return {
+        "id": new_user["id"],
+        "name": new_user["name"],
+        "age": new_user["age"],
+        "email": new_user["email"],
+    }
+
 
 
 # 회원 수정 요청에서 받을 데이터
