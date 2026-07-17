@@ -1,6 +1,6 @@
 import enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import Department, Gender, Role
 from app.models.user import User
@@ -83,7 +83,11 @@ class MyInfoUpdateRequest(BaseModel):
 
 
 class PasswordChangeRequest(BaseModel):
-    """REQ-USER-008 요청. 새 비밀번호 정책 검증은 공용 모듈(진형 님)에서 수행한다."""
+    """REQ-USER-008 요청.
+
+    새 비밀번호 정책 검증은 서비스(change_my_password)에서 수행하며,
+    위반 시 400으로 응답한다. (Pydantic validator로 검증하면 422가 나가므로 사용하지 않는다)
+    """
 
     current_password: str
     new_password: str
@@ -93,3 +97,7 @@ class MessageResponse(BaseModel):
     """단순 결과 메시지 응답 (예: 비밀번호 변경 완료)."""
 
     detail: str
+
+
+class UserDeleteRequest(BaseModel):
+    current_password: str = Field(min_length=1)

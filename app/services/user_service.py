@@ -1,9 +1,10 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import verify_password
 from app.models.user import User
-from app.repositories.user_repository import get_user_by_phone_number
+from app.repositories.user_repository import delete_user, get_user_by_phone_number
 from app.schemas.user import DEPARTMENT_API_TO_DB, MyInfoUpdateRequest
 
 
@@ -38,16 +39,35 @@ async def update_my_info(
 
 
 def verify_current_password(current_user: User, current_password: str) -> None:
-    """REQ-USER-008. 기존 비밀번호가 저장된 해시와 일치하는지 검증한다.
+    """기존 비밀번호가 저장된 해시와 일치하는지 검증한다.
 
     불일치 시 403으로 응답한다. (명세 비고: 400/401은 프런트엔드 동작상 사용 불가)
-
-    새 비밀번호 정책 검증(400)과 해싱은 REQ-USER-001 담당자의 공용 모듈이
-    develop에 병합되면 연결한다. 이 함수는 그 전까지 독립적으로 사용·검증 가능한
-    기존 비밀번호 확인 로직만 담당한다.
     """
     if not verify_password(current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="기존 비밀번호가 일치하지 않습니다.",
         )
+
+
+async def delete_current_user(
+    db: AsyncSession,
+    current_user: User,
+    current_password: str,
+) -> None:
+    """현재 비밀번호를 확인한 뒤 로그인 사용자를 하드 삭제한다."""
+    if not verify_password(current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 비밀번호가 일치하지 않습니다.",
+        )
+
+    try:
+        await delete_user(db, current_user)
+        await db.commit()
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="회원 탈퇴 처리 중 오류가 발생했습니다.",
+        ) from exc
