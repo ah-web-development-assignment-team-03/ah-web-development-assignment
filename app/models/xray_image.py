@@ -26,7 +26,7 @@ class XrayImage(Base):
     # users 테이블의 id 참조
     uploader_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
 
