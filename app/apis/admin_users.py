@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
+from app.dependencies.auth import require_admin
 from app.models.enums import Department, Gender, Role
 from app.models.user import User
 
@@ -57,6 +58,7 @@ class UserRoleResponse(BaseModel):
 )
 async def get_admin_users(
     db: Annotated[AsyncSession, Depends(async_get_db)],
+    current_admin: Annotated[User, Depends(require_admin)],
     search: Annotated[
         str | None,
         Query(
@@ -80,12 +82,11 @@ async def get_admin_users(
 ) -> UserListResponse:
     """관리자가 회원 목록을 검색, 필터 및 페이지 단위로 조회합니다."""
 
-    # TODO: 인증 담당자의 공통 의존성이 병합되면
-    # 현재 로그인 사용자 확인과 ADMIN 권한 검사를 추가합니다.
     conditions = []
 
     if search is not None:
-        search_pattern = f"%{search.strip()}%"
+        search = search.strip()
+        search_pattern = f"%{search}%"
         conditions.append(
             or_(
                 User.email.ilike(search_pattern),
@@ -135,11 +136,10 @@ async def update_user_role(
     user_id: Annotated[int, Path(ge=1, description="권한을 변경할 회원 ID")],
     payload: UserRoleUpdate,
     db: Annotated[AsyncSession, Depends(async_get_db)],
+    current_admin: Annotated[User, Depends(require_admin)],
 ) -> UserRoleResponse:
     """관리자가 특정 회원의 권한을 변경합니다."""
 
-    # TODO: 인증 담당자의 공통 의존성이 병합되면
-    # 현재 로그인 사용자 확인과 ADMIN 권한 검사를 추가합니다.
     user = await db.get(User, user_id)
 
     if user is None:
