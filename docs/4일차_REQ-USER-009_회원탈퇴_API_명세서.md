@@ -34,6 +34,7 @@ Authorization: Bearer <access_token>
 ### 2.2 응답 형식
 
 - 회원 탈퇴 성공 시 응답 Body 없이 `204 No Content`를 반환한다.
+- 회원 탈퇴 성공 시 로그아웃과 동일한 옵션으로 `refresh_token` 쿠키를 삭제한다.
 - 오류 응답은 FastAPI의 공통 오류 형식인 `detail` 필드를 사용한다.
 - 서버 내부 예외 내용, 비밀번호 및 토큰 정보는 오류 응답에 노출하지 않는다.
 
@@ -99,9 +100,10 @@ Content-Type: application/json
 
 ```http
 HTTP/1.1 204 No Content
+Set-Cookie: refresh_token=""; expires=<즉시 만료 시각>; HttpOnly; Max-Age=0; Path=/; SameSite=lax
 ```
 
-응답 Body는 반환하지 않는다.
+응답 Body는 반환하지 않으며, `Set-Cookie` Header를 통해 브라우저의 Refresh Token 쿠키를 만료시킨다.
 
 ### 3.6 Error Response
 
@@ -190,7 +192,8 @@ Database 오류가 발생하면 사용자 및 관련 X-ray 데이터의 삭제 �
 6. 비밀번호가 일치하면 현재 사용자 행을 삭제한다.
 7. `ON DELETE CASCADE`에 따라 해당 사용자가 업로드한 `xray_images` 행을 자동 삭제한다.
 8. 하나의 트랜잭션으로 변경 내용을 커밋한다.
-9. `204 No Content`를 반환한다.
+9. 로그아웃과 동일한 쿠키 옵션으로 `refresh_token` 쿠키를 삭제한다.
+10. `204 No Content`를 반환한다.
 
 ### 4.2 데이터 삭제 정책
 
@@ -216,12 +219,13 @@ Database 오류가 발생하면 사용자 및 관련 X-ray 데이터의 삭제 �
 - 저장된 해시 비밀번호와 안전한 비밀번호 검증 함수를 이용해 비교한다.
 - Access Token과 `current_password`는 오류 메시지에 포함하지 않는다.
 - 탈퇴 완료 후 삭제된 사용자의 기존 Access Token으로 인증할 수 없어야 한다.
+- 탈퇴 완료 후 클라이언트에 `refresh_token` 쿠키가 남아 있지 않아야 한다.
 
 ## 5. 테스트 기준
 
 | 테스트 항목 | 예상 결과 |
 | --- | --- |
-| 정상 토큰과 올바른 현재 비밀번호 | `204`, 사용자 및 해당 사용자의 X-ray 정보 삭제 |
+| 정상 토큰과 올바른 현재 비밀번호 | `204`, 사용자 및 해당 사용자의 X-ray 정보 삭제, `refresh_token` 쿠키 만료 |
 | 현재 비밀번호 불일치 | `400`, 모든 데이터 유지 |
 | Access Token 누락 | `401` |
 | 만료·위조·손상된 Access Token | `401` |
