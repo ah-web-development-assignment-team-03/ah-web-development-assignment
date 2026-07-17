@@ -1,11 +1,15 @@
+import re
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import verify_password
+from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.repositories.user_repository import delete_user, get_user_by_phone_number
 from app.schemas.user import DEPARTMENT_API_TO_DB, MyInfoUpdateRequest
+
+PASSWORD_POLICY_MESSAGE = "비밀번호는 대소문자, 특수문자, 숫자를 각 1개씩 포함한 8자리 이상이어야 합니다."
 
 
 async def update_my_info(
@@ -48,6 +52,44 @@ def verify_current_password(current_user: User, current_password: str) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="기존 비밀번호가 일치하지 않습니다.",
         )
+
+
+def _validate_new_password(new_password: str) -> None:
+    """새 비밀번호 정책 검증. 위반 시 400으로 응답한다.
+
+    대문자·소문자·숫자·특수문자를 각 1개 이상 포함하고 8자 이상이어야 한다.
+    Pydantic validator로 검증하면 422가 나가므로, 서비스 계층에서 400으로 처리한다.
+    """
+    if (
+        len(new_password) < 8
+        or re.search(r"[a-z]", new_password) is None
+        or re.search(r"[A-Z]", new_password) is None
+        or re.search(r"[0-9]", new_password) is None
+        or re.search(r"[^A-Za-z0-9]", new_password) is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=PASSWORD_POLICY_MESSAGE,
+        )
+
+
+async def change_my_password(
+    db: AsyncSession,
+    current_user: User,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """REQ-USER-008. 기존 비밀번호를 확인한 뒤 새 비밀번호로 변경한다.
+
+    - 기존 비밀번호 불일치 → 403
+    - 새 비밀번호 정책 위반 → 400
+    - 통과 시 새 비밀번호를 해싱해 저장한다.
+    """
+    verify_current_password(current_user, current_password)
+    _validate_new_password(new_password)
+
+    current_user.hashed_password = hash_password(new_password)
+    await db.commit()
 
 
 async def delete_current_user(
