@@ -9,7 +9,7 @@ async def create_patient(
     *,  # 이 위치 이후의 모든 인자는 키워드 인자로 전달되어야 함
     name: str,
     age: int,
-    gender: GenderEnum,
+    gender: GenderEnum | None,
     phone: str,
 ) -> Patient:
     patient = Patient(name=name, age=age, gender=gender, phone=phone)
