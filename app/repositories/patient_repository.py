@@ -4,7 +4,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.models.patients import GenderEnum, Patient
+from app.models.enums import Gender
+from app.models.patients import Patient
 
 
 async def create_patient(
@@ -12,7 +13,7 @@ async def create_patient(
     *,  # 이 위치 이후의 모든 인자는 키워드 인자로 전달되어야 함
     name: str,
     age: int,
-    gender: GenderEnum | None,
+    gender: Gender | None,
     phone: str,
 ) -> Patient:
     patient = Patient(name=name, age=age, gender=gender, phone=phone)
@@ -30,7 +31,7 @@ async def get_patient_by_id(db: AsyncSession, patient_id: int) -> Patient | None
 def _patient_list_conditions(
     *,
     name: str | None,
-    gender: GenderEnum | None,
+    gender: Gender | None,
     min_age: int | None,
     max_age: int | None,
 ) -> list[ColumnElement[bool]]:
@@ -52,7 +53,7 @@ async def get_patients(
     db: AsyncSession,
     *,
     name: str | None,
-    gender: GenderEnum | None,
+    gender: Gender | None,
     min_age: int | None,
     max_age: int | None,
     offset: int,
@@ -77,7 +78,7 @@ async def count_patients(
     db: AsyncSession,
     *,
     name: str | None,
-    gender: GenderEnum | None,
+    gender: Gender | None,
     min_age: int | None,
     max_age: int | None,
 ) -> int:

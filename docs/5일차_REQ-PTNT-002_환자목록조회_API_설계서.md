@@ -50,7 +50,7 @@
 1. 검색·필터 조건을 함께 전달하면 `AND` 조건으로 결합한다.
 2. `name`은 앞뒤 공백을 제거한 후 부분 일치로 검색한다.
 3. 공백 제거 결과가 빈 문자열이면 `422 Unprocessable Entity`를 반환한다.
-4. `gender`는 기존 `GenderEnum`의 `M`, `F`만 허용한다.
+4. `gender`는 공통 `Gender` enum의 `M`, `F`만 허용한다.
 5. `min_age`와 `max_age`는 경계값을 포함한다.
 6. `min_age`가 `max_age`보다 크면 `422 Unprocessable Entity`를 반환한다.
 7. 조건이 없으면 전체 환자를 페이지 단위로 조회한다.
@@ -129,7 +129,7 @@
 
 - `PatientListResponse`는 `items`, `total`, `page`, `size`를 포함한다.
 - `items`의 자료형은 기존 `PatientDetailResponse` 목록으로 한다.
-- 환자 ID는 `int`, 연락처 필드명은 `phone`, 성별은 `GenderEnum | None`을 사용한다.
+- 환자 ID는 `int`, 연락처 필드명은 `phone`, 성별은 공통 `Gender | None`을 사용한다.
 
 ## 8. NFR-PTNT-001 성능 기준
 

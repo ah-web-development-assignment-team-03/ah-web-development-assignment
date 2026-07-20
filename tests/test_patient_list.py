@@ -8,7 +8,8 @@ import app.models  # noqa: F401  # SQLAlchemy 관계 모델 등록
 from app.apis import patients as patients_api
 from app.core.db.databases import Base, async_get_db
 from app.main import app
-from app.models.patients import GenderEnum, Patient
+from app.models.enums import Gender
+from app.models.patients import Patient
 from app.services.patient_service import list_patients
 
 
@@ -25,11 +26,11 @@ class PatientListTestCase(unittest.IsolatedAsyncioTestCase):
         async with self.session_factory() as session:
             session.add_all(
                 [
-                    Patient(name="김하나", age=20, gender=GenderEnum.F, phone="01000000001"),
-                    Patient(name="김두리", age=30, gender=GenderEnum.M, phone="01000000002"),
-                    Patient(name="이세나", age=40, gender=GenderEnum.F, phone="01000000003"),
+                    Patient(name="김하나", age=20, gender=Gender.F, phone="01000000001"),
+                    Patient(name="김두리", age=30, gender=Gender.M, phone="01000000002"),
+                    Patient(name="이세나", age=40, gender=Gender.F, phone="01000000003"),
                     Patient(name="박네모", age=50, gender=None, phone="01000000004"),
-                    Patient(name="최다섯", age=60, gender=GenderEnum.M, phone="01000000005"),
+                    Patient(name="최다섯", age=60, gender=Gender.M, phone="01000000005"),
                 ]
             )
             await session.commit()
@@ -43,7 +44,7 @@ class PatientListTestCase(unittest.IsolatedAsyncioTestCase):
             response = await list_patients(
                 session,
                 name=" 김 ",
-                gender=GenderEnum.M,
+                gender=Gender.M,
                 min_age=20,
                 max_age=40,
                 page=1,

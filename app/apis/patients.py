@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
 from app.dependencies.auth import get_current_user, require_roles
-from app.models.enums import Department, Role
-from app.models.patients import GenderEnum
+from app.models.enums import Department, Gender, Role
 from app.models.user import User
 from app.schemas.patient import (
     PatientCreateRequest,
@@ -47,7 +46,7 @@ async def list_patients_handler(
         Query(min_length=1, max_length=30, description="환자 이름 검색어"),
     ] = None,
     gender: Annotated[
-        GenderEnum | None,
+        Gender | None,
         Query(description="성별 필터"),
     ] = None,
     min_age: Annotated[

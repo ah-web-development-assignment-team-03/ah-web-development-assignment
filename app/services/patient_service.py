@@ -1,7 +1,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.patients import GenderEnum, Patient
+from app.models.enums import Gender
+from app.models.patients import Patient
 from app.repositories.patient_repository import (
     count_patients,
     create_patient,
@@ -41,7 +42,7 @@ async def list_patients(
     db: AsyncSession,
     *,
     name: str | None,
-    gender: GenderEnum | None,
+    gender: Gender | None,
     min_age: int | None,
     max_age: int | None,
     page: int,
