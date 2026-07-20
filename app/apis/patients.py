@@ -1,12 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
 from app.dependencies.auth import get_current_user, require_roles
 from app.models.enums import Department, Role
 from app.models.user import User
-from app.schemas.patient import PatientCreateRequest, PatientDetailResponse
-from app.services.patient_service import get_patient, register_patient
+from app.schemas.patient import (
+    PatientCreateRequest,
+    PatientDetailResponse,
+    PatientUpdateRequest,
+)
+from app.services.patient_service import (
+    delete_patient,
+    get_patient,
+    register_patient,
+    update_patient,
+)
 
 router = APIRouter(prefix="/api/v1/patients", tags=["patients"])
 
@@ -51,3 +60,31 @@ async def get_patient_handler(
     """REQ-PTNT-003. 환자 정보 상세 조회."""
     patient = await get_patient(db, patient_id)
     return PatientDetailResponse.model_validate(patient)
+
+
+# ── C 구현 영역 (REQ-PTNT-004, 005) ──────────────────────────
+@router.patch("/{patient_id}", response_model=PatientDetailResponse)
+async def update_patient_handler(
+    patient_id: int,
+    request: PatientUpdateRequest,
+    current_user: User = Depends(_require_staff_or_admin),
+    db: AsyncSession = Depends(async_get_db),
+) -> PatientDetailResponse:
+    """REQ-PTNT-004. 환자 정보 수정(이름·연락처)."""
+    patient = await update_patient(db, patient_id, request)
+    return PatientDetailResponse.model_validate(patient)
+
+
+@router.delete(
+    "/{patient_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def delete_patient_handler(
+    patient_id: int,
+    current_user: User = Depends(_require_staff_or_admin),
+    db: AsyncSession = Depends(async_get_db),
+) -> Response:
+    """REQ-PTNT-005. 환자 삭제(진료기록·X-ray 연쇄 삭제)."""
+    await delete_patient(db, patient_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
