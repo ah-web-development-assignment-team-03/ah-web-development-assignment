@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
-from app.dependencies.auth import get_current_user, require_roles
+from app.dependencies.auth import require_medical_staff as _require_medical_staff, require_roles
 from app.models.enums import Department, Role
 from app.models.user import User
 from app.schemas.patient import PatientCreateRequest, PatientDetailResponse
@@ -10,22 +10,6 @@ from app.services.patient_service import get_patient, register_patient
 
 router = APIRouter(prefix="/api/v1/patients", tags=["patients"])
 
-
-async def _require_medical_staff(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    """MEDICAL 부서의 STAFF 또는 ADMIN만 통과시킨다."""
-    if current_user.role == Role.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="접근 권한이 없습니다.",
-        )
-    if current_user.department != Department.MEDICAL:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="의료인만 접근 가능합니다.",
-        )
-    return current_user
 
 
 _require_staff_or_admin = require_roles(Role.STAFF, Role.ADMIN)

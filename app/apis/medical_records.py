@@ -3,19 +3,15 @@
 
 POST /api/v1/patients/{patient_id}/medical-records
 - X-Ray 이미지 업로드가 포함되므로 multipart/form-data 로 요청받는다.
-- REQ-MDR-001은 "사내 의료인 역할" 전용 -> A가 만든 _require_medical_staff 재사용.
-
-※ A에게 제안할 것:
-  _require_medical_staff 가 patients.py 에 private(_)로 정의되어 있어 여기서 직접
-  import 한다. 장기적으로는 app/dependencies/auth.py 로 옮기는 것이 깔끔함.
+- REQ-MDR-001은 "사내 의료인 역할" 전용 -> 공용 require_medical_staff 의존성 사용.
 """
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.apis.patients import _require_medical_staff
 from app.core.db.databases import async_get_db
+from app.dependencies.auth import require_medical_staff
 from app.models.user import User
 from app.schemas.medical_record import MedicalRecordDetailResponse
 from app.services import medical_record_service
@@ -30,13 +26,15 @@ router = APIRouter(prefix="/api/v1/patients", tags=["medical-records"])
 )
 async def create_medical_record_handler(
     patient_id: int,
-    chart_number: str = Form(..., description="진료 차트 넘버 (중복 불가)"),
+    chart_number: str = Form(
+        ..., max_length=50, description="진료 차트 넘버 (중복 불가, 최대 50자)"
+    ),
     symptoms: str = Form(..., description="진료된 증상"),
-    xray_image: UploadFile = File(..., description="촬영된 흉부 X-Ray 이미지 (jpg/png)"),
+    xray_image: UploadFile = File(..., description="촬영된 흉부 X-Ray 이미지 (jpg/png, 10MB 이하)"),
     shooting_datetime: datetime | None = Form(
         None, description="X-Ray 촬영 일시 (미입력 시 등록 시각으로 저장)"
     ),
-    current_user: User = Depends(_require_medical_staff),
+    current_user: User = Depends(require_medical_staff),
     db: AsyncSession = Depends(async_get_db),
 ) -> MedicalRecordDetailResponse:
     """REQ-MDR-001. X-Ray 이미지를 포함한 진료 기록 등록.
