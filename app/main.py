@@ -7,13 +7,17 @@ from starlette.responses import FileResponse
 
 # Import practice APIs router
 from app.apis.practice_apis import router as practice_router
+from app.apis.admin_users import router as admin_users_router
 from app.apis.auth import router as auth_router
+from app.apis.users import router as users_router
 
 app = FastAPI()
 
 # Include practice APIs router
 app.include_router(practice_router)
+app.include_router(admin_users_router)
 app.include_router(auth_router)
+app.include_router(users_router)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
