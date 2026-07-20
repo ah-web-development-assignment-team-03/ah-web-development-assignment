@@ -4,19 +4,25 @@ from pathlib import Path
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import Gender
 from app.models.patients import Patient
 from app.repositories.patient_repository import (
+    count_patients,
     create_patient,
     get_image_urls_by_patient,
     get_patient_by_id,
+    get_patients,
 )
 from app.repositories.patient_repository import delete_patient as delete_patient_row
 from app.repositories.patient_repository import update_patient as update_patient_row
-from app.schemas.patient import PatientCreateRequest, PatientUpdateRequest
+from app.schemas.patient import (
+    PatientCreateRequest,
+    PatientDetailResponse,
+    PatientListResponse,
+    PatientUpdateRequest,
+)
 
 logger = logging.getLogger(__name__)
-
-# app/services/patient_service.py -> app/services -> app -> 프로젝트 루트
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -42,62 +48,78 @@ async def get_patient(db: AsyncSession, patient_id: int) -> Patient:
     return patient
 
 
-# ── C 구현 영역 (REQ-PTNT-004, 005) ──────────────────────────
+async def list_patients(
+    db: AsyncSession,
+    *,
+    name: str | None,
+    gender: Gender | None,
+    min_age: int | None,
+    max_age: int | None,
+    page: int,
+    size: int,
+) -> PatientListResponse:
+    """REQ-PTNT-002. 환자 목록을 검색·필터·페이지 단위로 조회한다."""
+    normalized_name = name.strip() if name is not None else None
+    if normalized_name == "":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="이름 검색어는 공백일 수 없습니다.",
+        )
+    if min_age is not None and max_age is not None and min_age > max_age:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="min_age는 max_age보다 클 수 없습니다.",
+        )
+
+    filters = {
+        "name": normalized_name,
+        "gender": gender,
+        "min_age": min_age,
+        "max_age": max_age,
+    }
+    patients = await get_patients(
+        db,
+        **filters,
+        offset=(page - 1) * size,
+        limit=size,
+    )
+    total = await count_patients(db, **filters)
+
+    return PatientListResponse(
+        items=[PatientDetailResponse.model_validate(patient) for patient in patients],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
 async def update_patient(
     db: AsyncSession,
     patient_id: int,
     data: PatientUpdateRequest,
 ) -> Patient:
-    """REQ-PTNT-004. 환자의 이름·연락처를 수정한다.
-
-    존재하지 않는 환자에 대한 404는 get_patient()가 던진다.
-    """
+    """REQ-PTNT-004. 환자의 이름·연락처를 수정한다."""
     patient = await get_patient(db, patient_id)
     return await update_patient_row(db, patient, data)
 
 
 def _resolve_image_path(image_url: str) -> Path | None:
-    """image_url -> 실제 파일 경로. REQ-MDR-001 저장 규약 확정 시 이 함수만 고친다.
-
-    저장 규약이 아직 정해지지 않았다. 잠정적으로 프로젝트 루트 기준
-    상대경로로 가정하고, 해석할 수 없으면 None을 반환해 건너뛴다.
-    """
-    if not image_url:
-        return None
-
-    # 외부 URL(s3, http 등)은 로컬 파일이 아니므로 다룰 수 없다.
-    if "://" in image_url:
+    """로컬 image_url을 안전한 실제 파일 경로로 변환한다."""
+    if not image_url or "://" in image_url:
         return None
 
     candidate = (_PROJECT_ROOT / image_url.lstrip("/")).resolve()
-
-    # 프로젝트 루트 밖을 가리키면(경로 조작 등) 건드리지 않는다.
-    if not candidate.is_relative_to(_PROJECT_ROOT):
+    if not candidate.is_relative_to(_PROJECT_ROOT) or not candidate.is_file():
         return None
-
-    if not candidate.is_file():
-        return None
-
     return candidate
 
 
 async def delete_patient(db: AsyncSession, patient_id: int) -> None:
-    """REQ-PTNT-005. 환자와 관련 데이터를 영구 삭제한다.
-
-    진료기록·X-ray 레코드는 FK의 ON DELETE CASCADE로 DB가 함께 지운다.
-    애플리케이션은 로컬 이미지 파일만 직접 정리한다.
-    """
+    """REQ-PTNT-005. 환자와 관련 데이터를 영구 삭제한다."""
     patient = await get_patient(db, patient_id)
-
-    # 1) DB 행이 사라지기 전에 지울 파일 목록을 먼저 확보한다.
     image_urls = await get_image_urls_by_patient(db, patient_id)
-
-    # 2) DB 삭제 + 커밋. 실패하면 여기서 예외가 올라가고 파일은 건드리지 않는다.
     await delete_patient_row(db, patient)
 
-    # 3) 커밋이 끝난 뒤에만 파일을 지운다.
-    #    파일 삭제 실패로 DB를 되돌리면 그 파일을 지울 수단이 사라지므로
-    #    로그만 남기고 예외는 올리지 않는다.
     for image_url in image_urls:
         path = _resolve_image_path(image_url)
         if path is None:

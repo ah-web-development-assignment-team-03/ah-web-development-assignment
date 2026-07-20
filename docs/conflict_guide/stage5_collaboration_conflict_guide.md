@@ -98,7 +98,7 @@ A가 작성한 내용:
 ### 5. `app/models/patients.py` ← 충돌 위험 낮음
 
 A가 작성한 내용:
-- `GenderEnum` (M/F)
+- 공통 `Gender` enum (M/F)
 - `Patient` 모델 (id, name, age, gender, phone, created_at, updated_at, medical_records 관계)
 - `medical_records` relationship에 `passive_deletes=True` 설정 — DB 레벨 CASCADE에 위임
 

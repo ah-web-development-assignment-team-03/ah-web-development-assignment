@@ -1,18 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
 from app.dependencies.auth import get_current_user, require_roles
-from app.models.enums import Department, Role
+from app.models.enums import Department, Gender, Role
 from app.models.user import User
 from app.schemas.patient import (
     PatientCreateRequest,
     PatientDetailResponse,
+    PatientListResponse,
     PatientUpdateRequest,
 )
 from app.services.patient_service import (
     delete_patient,
     get_patient,
+    list_patients,
     register_patient,
     update_patient,
 )
@@ -40,6 +44,47 @@ async def _require_medical_staff(
 _require_staff_or_admin = require_roles(Role.STAFF, Role.ADMIN)
 
 
+@router.get("", response_model=PatientListResponse, status_code=status.HTTP_200_OK)
+async def list_patients_handler(
+    current_user: User = Depends(_require_staff_or_admin),
+    db: AsyncSession = Depends(async_get_db),
+    name: Annotated[
+        str | None,
+        Query(min_length=1, max_length=30, description="환자 이름 검색어"),
+    ] = None,
+    gender: Annotated[
+        Gender | None,
+        Query(description="성별 필터"),
+    ] = None,
+    min_age: Annotated[
+        int | None,
+        Query(ge=0, le=150, description="최소 나이"),
+    ] = None,
+    max_age: Annotated[
+        int | None,
+        Query(ge=0, le=150, description="최대 나이"),
+    ] = None,
+    page: Annotated[
+        int,
+        Query(ge=1, description="조회할 페이지 번호"),
+    ] = 1,
+    size: Annotated[
+        int,
+        Query(ge=1, le=100, description="페이지당 환자 수"),
+    ] = 20,
+) -> PatientListResponse:
+    """REQ-PTNT-002. 환자 목록 조회."""
+    return await list_patients(
+        db,
+        name=name,
+        gender=gender,
+        min_age=min_age,
+        max_age=max_age,
+        page=page,
+        size=size,
+    )
+
+
 @router.post("", response_model=PatientDetailResponse, status_code=status.HTTP_201_CREATED)
 async def register_patient_handler(
     request: PatientCreateRequest,
@@ -62,7 +107,6 @@ async def get_patient_handler(
     return PatientDetailResponse.model_validate(patient)
 
 
-# ── C 구현 영역 (REQ-PTNT-004, 005) ──────────────────────────
 @router.patch("/{patient_id}", response_model=PatientDetailResponse)
 async def update_patient_handler(
     patient_id: int,
