@@ -5,12 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.enums import Gender
+from app.models.medical_record import MedicalRecord
 from app.models.patients import Patient
+from app.models.xray_image import XrayImage
+from app.schemas.patient import PatientUpdateRequest
 
 
 async def create_patient(
-    db: AsyncSession,   # DB 세션
-    *,  # 이 위치 이후의 모든 인자는 키워드 인자로 전달되어야 함
+    db: AsyncSession,
+    *,
     name: str,
     age: int,
     gender: Gender | None,
@@ -95,3 +98,32 @@ async def count_patients(
 
     result = await db.execute(query)
     return result.scalar_one()
+
+
+async def get_image_urls_by_patient(db: AsyncSession, patient_id: int) -> list[str]:
+    """환자에 속한 X-ray 이미지의 URL 목록을 조회한다."""
+    result = await db.execute(
+        select(XrayImage.image_url)
+        .join(MedicalRecord, XrayImage.record_id == MedicalRecord.id)
+        .where(MedicalRecord.patient_id == patient_id)
+    )
+    return list(result.scalars().all())
+
+
+async def update_patient(
+    db: AsyncSession,
+    patient: Patient,
+    data: PatientUpdateRequest,
+) -> Patient:
+    """전달된 이름과 연락처만 반영한다."""
+    for field, value in data.model_dump(exclude_unset=True, exclude_none=True).items():
+        setattr(patient, field, value)
+    await db.commit()
+    await db.refresh(patient)
+    return patient
+
+
+async def delete_patient(db: AsyncSession, patient: Patient) -> None:
+    """환자 행을 삭제하고 연관 DB 레코드는 cascade에 위임한다."""
+    await db.delete(patient)
+    await db.commit()

@@ -12,6 +12,13 @@ class PatientCreateRequest(BaseModel):
     phone: str = Field(..., min_length=1, max_length=11)
 
 
+class PatientUpdateRequest(BaseModel):
+    """REQ-PTNT-004. 수정 가능한 항목은 이름과 연락처뿐이다."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=30)
+    phone: str | None = Field(default=None, min_length=1, max_length=11)
+
+
 class PatientDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
