@@ -22,3 +22,10 @@ class PatientDetailResponse(BaseModel):
     phone: str
     created_at: datetime
     updated_at: datetime | None
+
+
+class PatientListResponse(BaseModel):
+    items: list[PatientDetailResponse]
+    total: int
+    page: int
+    size: int
