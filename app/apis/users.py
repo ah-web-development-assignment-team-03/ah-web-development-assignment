@@ -10,16 +10,29 @@ from app.schemas.user import (
     MyInfoUpdateRequest,
     MyPageResponse,
     PasswordChangeRequest,
+    UserCreate,
     UserDeleteRequest,
+    UserResponse,
 )
 from app.services.user_service import (
     change_my_password,
     delete_current_user,
+    register_user,
     update_my_info,
 )
 
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register_handler(
+    request: UserCreate,
+    db: AsyncSession = Depends(async_get_db),
+) -> UserResponse:
+    """REQ-USER-001. 회원가입."""
+    user = await register_user(db, request)
+    return UserResponse.model_validate(user)
 
 
 @router.get("/me", response_model=MyPageResponse)

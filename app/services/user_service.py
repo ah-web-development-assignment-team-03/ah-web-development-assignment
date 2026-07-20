@@ -5,11 +5,45 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
+from app.models.enums import Role
 from app.models.user import User
-from app.repositories.user_repository import delete_user, get_user_by_phone_number
-from app.schemas.user import DEPARTMENT_API_TO_DB, MyInfoUpdateRequest
+from app.repositories.user_repository import (
+    create_user,
+    delete_user,
+    get_user_by_email,
+    get_user_by_phone_number,
+)
+from app.schemas.user import DEPARTMENT_API_TO_DB, MyInfoUpdateRequest, UserCreate
 
 PASSWORD_POLICY_MESSAGE = "비밀번호는 대소문자, 특수문자, 숫자를 각 1개씩 포함한 8자리 이상이어야 합니다."
+
+
+async def register_user(db: AsyncSession, user_data: UserCreate) -> User:
+    """REQ-USER-001 회원가입."""
+    if await get_user_by_email(db, user_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 사용 중인 이메일입니다.",
+        )
+
+    if await get_user_by_phone_number(db, user_data.phone_number):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 사용 중인 휴대폰 번호입니다.",
+        )
+
+    _validate_new_password(user_data.password)
+
+    return await create_user(
+        db,
+        email=user_data.email,
+        hashed_password=hash_password(user_data.password),
+        name=user_data.name,
+        department=user_data.department,
+        gender=user_data.gender,
+        phone_number=user_data.phone_number,
+        role=Role.PENDING,
+    )
 
 
 async def update_my_info(

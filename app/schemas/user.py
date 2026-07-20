@@ -1,6 +1,6 @@
 import enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.enums import Department, Gender, Role
 from app.models.user import User
@@ -101,3 +101,29 @@ class MessageResponse(BaseModel):
 
 class UserDeleteRequest(BaseModel):
     current_password: str = Field(min_length=1)
+
+
+class UserCreate(BaseModel):
+    """REQ-USER-001 회원가입 요청."""
+
+    email: EmailStr = Field(..., max_length=255)
+    password: str = Field(..., min_length=8)
+    name: str = Field(..., min_length=1, max_length=20)
+    department: Department
+    gender: Gender
+    phone_number: str = Field(..., max_length=20)
+
+
+class UserResponse(BaseModel):
+    """REQ-USER-001 회원가입 응답 (201). 비밀번호는 포함하지 않는다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    name: str
+    department: Department
+    gender: Gender
+    phone_number: str
+    role: Role
+    is_active: bool
