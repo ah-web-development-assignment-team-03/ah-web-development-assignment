@@ -74,7 +74,21 @@ Authorization: Bearer <access_token>
    - **캐시 미스**: 6번으로 진행한다.
 6. `predict(image_path)`를 호출하여 예측을 수행한다.
 7. 반환값을 `ai_analysis_results`에 저장하고 commit한다. → `201 Created`
-8. 추론 또는 저장 실패 시 rollback한다. (500)
+8. 저장 시 `(record_id, ai_model)` UNIQUE 제약 위반이 발생하면 **동시 요청 충돌**로 간주하고 4-1 규칙을 따른다.
+9. 그 외 추론 또는 저장 실패 시 rollback한다. (500)
+
+### 4-1. 동시 요청 충돌 처리
+
+동일 진료기록에 대해 예측 요청이 동시에 들어오면 두 요청 모두 캐시 조회에서 미스가 발생하여 각자 추론을 수행하고, 저장 단계에서 한쪽이 UNIQUE 제약에 걸린다.
+
+| 구분 | 처리 |
+|---|---|
+| 먼저 저장한 요청 | 정상 저장 → `201 Created`, `cached: false` |
+| 나중에 저장한 요청 | `IntegrityError` 발생 → **rollback 후 저장된 결과를 재조회하여 반환** → `200 OK`, `cached: true` |
+
+- **오류(409)를 반환하지 않는다.** 요청의 목적은 '예측 결과를 얻는 것'이고 동일 진료기록·동일 모델의 결과는 값이 동일하므로, 이미 저장된 결과를 반환하는 것이 요구사항(캐시 정책)에 부합한다. 클라이언트가 재시도할 이유가 없다.
+- 재조회까지 실패하는 경우에만 `500`으로 응답한다.
+- UNIQUE 제약은 **중복 저장**을 방지하며, 동시 추론 자체(두 요청이 각각 `predict()` 실행)는 막지 못한다. 추론 중복까지 차단하려면 애플리케이션 레벨 잠금이나 작업 큐가 필요하므로, 현 단계에서는 **저장 정합성 보장**까지를 범위로 한다.
 
 ---
 
@@ -139,6 +153,7 @@ Authorization: Bearer <access_token>
 | `404 Not Found` | 진료기록에 X-ray 이미지가 없음 | `예측에 사용할 X-ray 이미지가 없습니다.` |
 | `422 Unprocessable Entity` | `record_id` 검증 실패 | FastAPI 입력 검증 오류 배열 |
 | `500 Internal Server Error` | AI 추론 실패 (모델 로드 실패, 이미지 손상 등) | `폐렴 예측 처리 중 오류가 발생했습니다.` |
+| ~~`409 Conflict`~~ | 사용하지 않음 — 동시 요청 충돌은 4-1에 따라 `200 OK` + `cached: true` 로 응답한다 | - |
 | `504 Gateway Timeout` | 처리시간이 3초를 초과함 | `폐렴 예측 처리시간이 3초를 초과했습니다.` |
 
 ---
@@ -213,6 +228,7 @@ class PredictionRunResponse(PredictionResultItem):
 | 예외 | 존재하지 않는 `record_id` | `404` |
 | 예외 | X-ray 이미지가 없는 진료기록 | `404` |
 | 검증 | `record_id=0` | `422` |
+| 동시성 | 동일 진료기록에 예측 요청 2건 동시 실행 | 하나는 `201`(`cached: false`), 다른 하나는 `200`(`cached: true`). **저장 건수는 1건** |
 | 성능 | 캐시 히트 요청 | 3초 이내 응답 |
 
 > 캐시 동작 검증은 **DB 저장 건수가 늘지 않는지**로 확인한다. 응답만 비교하면 재추론 여부를 알 수 없다.
@@ -221,7 +237,7 @@ class PredictionRunResponse(PredictionResultItem):
 
 ## 10. 002 및 DB 담당자와 합의할 항목
 
-1. `(record_id, ai_model)` 조합에 **UNIQUE 제약**을 적용한다. 캐시 정책의 정합성 근거이며, 동시 요청 시 중복 저장을 방지한다.
+1. `(record_id, ai_model)` 조합에 **UNIQUE 제약**을 적용한다. 캐시 정책의 정합성 근거이며, 동시 요청 시 중복 저장을 방지한다. 충돌 시 응답 규칙은 4-1 참고 (409가 아닌 `200 OK` + `cached: true`).
 2. `AIAnalysisResult.heatmap_url`을 `nullable=True`로 변경한다. (현재 `nullable=False`이나 `predict()`가 heatmap을 반환하지 않아 저장 불가)
 3. 저장 시각 필드명은 DB `created_at`, API `predicted_at`으로 통일한다. (002 규약 채택)
 4. 001 단건 응답과 002 `items[]`는 동일한 결과 필드명·타입을 사용한다. `cached`는 001 전용 메타 필드로 둔다.
