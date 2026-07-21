@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
 from app.core.security import decode_token
-from app.models.enums import Role
+from app.models.enums import Department, Role
 from app.models.user import User
 from app.repositories.user_repository import get_user_by_id
 
@@ -89,3 +89,13 @@ def require_roles(*allowed_roles: Role) -> RoleDependency:
 
 
 require_admin = require_roles(Role.ADMIN)
+
+async def require_medical_staff(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """MEDICAL 부서의 STAFF 또는 ADMIN만 통과시킨다."""
+    if current_user.role == Role.PENDING:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="접근 권한이 없습니다.")
+    if current_user.department != Department.MEDICAL:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="의료인만 접근 가능합니다.")
+    return current_user
