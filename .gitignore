@@ -38,3 +38,6 @@ htmlcov/
 
 # Alembic
 alembic/versions/*.pyc
+
+# 노트북 대조용 로컬 검증 스크립트(레포 밖 Kaggle test셋 사용, 커밋 안 함)
+worker/_verify_against_notebook.py
