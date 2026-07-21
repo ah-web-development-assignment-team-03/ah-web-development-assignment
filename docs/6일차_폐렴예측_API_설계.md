@@ -34,7 +34,7 @@
 - `MEDICAL`, `DEV`, `RESEARCH` 부서의 승인된 사용자는 모두 조회할 수 있다.
 - `PENDING` 사용자는 접근할 수 없다.
 
-> 현재 프로젝트의 부서 Enum은 `MEDICAL`, `DEV`, `RESEARCH`뿐이므로 부서로 추가 제한하지 않고 승인 역할(`STAFF`, `ADMIN`)로 권한을 판정한다.
+> 현재 프로젝트는 부서(`Department`)와 역할(`Role`)을 별도로 관리한다. `MEDICAL`, `DEV`, `RESEARCH`는 소속 부서이고, `PENDING`, `STAFF`, `ADMIN`은 승인·관리 권한이다. 기존 진료기록 API와 동일하게 승인된 일반 사용자(`STAFF`)와 관리자(`ADMIN`)를 허용한다.
 
 ---
 
@@ -146,7 +146,7 @@ Authorization: Bearer <access_token>
 | `predicted_at` | `ai_analysis_results.created_at` |
 | `ai_model` | `ai_analysis_results.ai_model` |
 
-> PR #45의 `predict()`는 `confidence`를 **예측한 클래스의 확신도**가 아닌 **폐렴일 확률(0~100)** 로 반환한다. 조회 API도 저장값의 의미를 바꾸지 않고 그대로 반환한다.
+> PR #45의 `predict()`는 이진 softmax 결과 중 폐렴 클래스(class 1)의 확률을 `confidence`로 반환한다. 따라서 예측 결과에 따라 값의 의미가 달라지지 않으며, 조회 API에서도 항상 **폐렴일 확률(0~100)** 로 반환한다. 정상일 확률은 `100 - confidence`, 폐렴 여부는 `confidence >= 50`으로 해석한다.
 
 ### 빈 결과 예시
 
@@ -213,7 +213,7 @@ Authorization: Bearer <access_token>
 - 안정적인 최신순 정렬을 위해 `(record_id, created_at, id)` 복합 인덱스를 구현 시 검토한다.
 - `confidence`는 DB `Numeric(5, 2)`와 맞춰 `0.00~100.00` 범위로 저장·반환한다.
 - `ai_model`은 PR #45의 `MODEL_TAG` 값과 동일한 식별자를 사용한다.
-- 현재 모델은 heatmap을 생성하지 않으므로 `heatmap_url`은 선택 필드이며 `null`을 허용한다.
+- Stage 6 요구사항에서는 heatmap이 선택사항이고 현재 PR #45의 모델도 heatmap을 생성하지 않는다. 다만 Stage 3 ERD와 현재 모델은 `heatmap_url`을 `nullable=False`로 정의하므로, 저장 기본값 또는 nullable 변경 정책은 REQ-PRED-001·DB 담당자와 합의한다.
 - 응답에는 원본 X-ray URL을 중복 포함하지 않는다. 원본 이미지는 진료기록 상세 API의 `xray_image_url`을 사용한다.
 
 ---
@@ -277,9 +277,8 @@ class PredictionResultListResponse(BaseModel):
 
 ## 10. REQ-PRED-001 및 DB 담당자와 합의할 항목
 
-1. `(record_id, ai_model)` 조합에 유일 제약을 적용하여 동일 모델 결과를 하나만 유지할지 확정한다.
-2. 기존 `AIAnalysisResult.heatmap_url`은 `nullable=False`이지만 heatmap은 선택사항이므로 `nullable=True`로 변경해야 한다.
+1. `(record_id, ai_model)` 조합에 UNIQUE 제약을 적용하여 동일 진료기록·동일 모델의 결과가 중복 저장되지 않도록 한다.
+2. 기존 `AIAnalysisResult.heatmap_url`과 Stage 3 ERD는 `nullable=False`이지만, Stage 6 요구사항에서는 heatmap이 선택사항이고 PR #45의 `predict()`도 heatmap을 반환하지 않는다. `NOT NULL`을 유지하면서 빈 문자열 또는 기본 이미지 URL을 저장할지, Stage 6 마이그레이션에서 `nullable=True`로 변경할지 합의한다. 선택사항의 의미를 유지하려면 `nullable=True`가 더 자연스럽다.
 3. 저장 시각 필드명은 DB의 `created_at`, API의 `predicted_at`으로 통일해 매핑한다.
 4. REQ-PRED-001 단건 응답과 REQ-PRED-002의 `items[]`는 동일한 결과 필드명과 타입을 사용한다.
 5. 공통 오류 메시지와 `504 Gateway Timeout` 처리 방식을 001·002에서 동일하게 적용한다.
-
