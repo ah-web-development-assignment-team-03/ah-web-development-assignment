@@ -1,7 +1,7 @@
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
@@ -26,7 +26,7 @@ require_prediction_access = require_roles(Role.STAFF, Role.ADMIN)
     response_model=PredictionResultListResponse,
 )
 async def get_medical_record_predictions_handler(
-    record_id: int,
+    record_id: Annotated[int, Path(ge=1)],
     page: Annotated[
         int,
         Query(ge=1, description="조회할 페이지 번호"),
