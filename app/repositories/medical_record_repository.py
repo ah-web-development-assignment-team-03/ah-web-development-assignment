@@ -1,28 +1,24 @@
+"""진료 기록 Repository (REQ-MDR-001, REQ-MDR-002, REQ-MDR-003).
+
+팀 트랜잭션 정책:
+- Repository는 add + flush까지만 담당
+- commit / rollback은 Service 계층 책임
+"""
+
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.medical_record import MedicalRecord
-from app.models.patients import Patient
-
-
-async def get_patient_by_id(
-    db: AsyncSession,
-    patient_id: int,
-) -> Patient | None:
-# 환자 존재 여부 확인용 조회
-
-    result = await db.execute(
-        select(Patient).where(Patient.id == patient_id)
-    )
-    return result.scalar_one_or_none()
-
+from app.models.xray_image import XrayImage
 
 
 async def get_medical_records_by_patient_id(
     db: AsyncSession,
     patient_id: int,
 ) -> list[MedicalRecord]:
-# REQ-MDR-002. 특정 환자의 진료기록을 최신순으로 조회한다
+    """REQ-MDR-002. 특정 환자의 진료기록을 최신순으로 조회한다."""
 
     result = await db.execute(
         select(MedicalRecord)
@@ -32,15 +28,15 @@ async def get_medical_records_by_patient_id(
             MedicalRecord.id.desc(),
         )
     )
-    return list(result.scalars().all())
 
+    return list(result.scalars().all())
 
 
 async def get_medical_record_by_id(
     db: AsyncSession,
     record_id: int,
 ) -> MedicalRecord | None:
-# REQ-MDR-003. 진료기록 ID로 상세 조회한다
+    """REQ-MDR-003. 진료기록 ID로 상세 내용을 조회한다."""
 
     result = await db.execute(
         select(MedicalRecord).where(
@@ -51,18 +47,60 @@ async def get_medical_record_by_id(
     return result.scalar_one_or_none()
 
 
-# TODO(팀 확인 필요)
-#
-# REQ-MDR-001 담당자와 아래 사항을 확정한 뒤 구현합니다.
-#
-# 1. 진료기록 한 건에 X-Ray 이미지를 한 장만 허용하는지
-# 2. 여러 장이면 첫 이미지와 최근 이미지 중 무엇을 반환하는지
-# 3. XrayImage.image_url에 저장되는 값이
-#    "/media/..." 형식인지 전체 URL인지
-#
-# 확정 후 예상 함수 형태:
-# async def get_xray_image_url_by_record_id(
-#     db: AsyncSession,
-#     record_id: int,
-# ) -> str | None:
-#     ...
+async def get_medical_record_by_chart_number(
+    db: AsyncSession,
+    chart_number: str,
+) -> MedicalRecord | None:
+    """차트 번호 중복 확인을 위해 진료기록을 단건 조회한다."""
+
+    result = await db.execute(
+        select(MedicalRecord).where(
+            MedicalRecord.chart_number == chart_number
+        )
+    )
+
+    return result.scalar_one_or_none()
+
+
+async def create_medical_record(
+    db: AsyncSession,
+    *,
+    patient_id: int,
+    chart_number: str,
+    symptoms: str,
+) -> MedicalRecord:
+    """진료기록을 추가하고 flush하여 ID를 확보한다."""
+
+    record = MedicalRecord(
+        patient_id=patient_id,
+        chart_number=chart_number,
+        symptoms=symptoms,
+    )
+
+    db.add(record)
+    await db.flush()
+
+    return record
+
+
+async def create_xray_image(
+    db: AsyncSession,
+    *,
+    record_id: int,
+    uploader_id: int,
+    image_url: str,
+    shooting_datetime: datetime,
+) -> XrayImage:
+    """X-Ray 이미지 정보를 진료기록과 같은 트랜잭션에 추가한다."""
+
+    image = XrayImage(
+        record_id=record_id,
+        uploader_id=uploader_id,
+        image_url=image_url,
+        shooting_datetime=shooting_datetime,
+    )
+
+    db.add(image)
+    await db.flush()
+
+    return image

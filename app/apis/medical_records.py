@@ -1,19 +1,26 @@
 import asyncio
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.databases import async_get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import require_roles
+from app.models.enums import Role
 from app.models.user import User
 from app.schemas.medical_record import (
     MedicalRecordDetailResponse,
     MedicalRecordListResponse,
 )
-from app.services.medical_record_service import (
-    get_medical_record_detail,
-    get_patient_medical_records,
-)
+from app.services import medical_record_service
 
 
 router = APIRouter(
@@ -21,10 +28,56 @@ router = APIRouter(
     tags=["medical-records"],
 )
 
-
 # NFR-MDR-001
-# 진료기록 API의 최대 처리시간
 MEDICAL_RECORD_API_TIMEOUT_SECONDS = 3.0
+
+# 진료기록 API 접근 권한
+require_medical_record_access = require_roles(
+    Role.STAFF,
+    Role.ADMIN,
+)
+
+
+@router.post(
+    "/patients/{patient_id}/medical-records",
+    response_model=MedicalRecordDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_medical_record_handler(
+    patient_id: int,
+    chart_number: str = Form(
+        ...,
+        max_length=50,
+        description="진료 차트 넘버 (중복 불가, 최대 50자)",
+    ),
+    symptoms: str = Form(
+        ...,
+        description="진료된 증상",
+    ),
+    xray_image: UploadFile = File(
+        ...,
+        description="촬영된 흉부 X-Ray 이미지 (jpg/png, 10MB 이하)",
+    ),
+    shooting_datetime: datetime | None = Form(
+        None,
+        description="X-Ray 촬영 일시 (미입력 시 등록 시각으로 저장)",
+    ),
+    current_user: User = Depends(require_medical_record_access),
+    db: AsyncSession = Depends(async_get_db),
+) -> MedicalRecordDetailResponse:
+    """REQ-MDR-001. X-Ray 이미지를 포함한 진료기록을 등록한다."""
+
+    record = await medical_record_service.create_medical_record(
+        db=db,
+        patient_id=patient_id,
+        uploader_id=current_user.id,
+        chart_number=chart_number,
+        symptoms=symptoms,
+        xray_image=xray_image,
+        shooting_datetime=shooting_datetime,
+    )
+
+    return MedicalRecordDetailResponse.model_validate(record)
 
 
 @router.get(
@@ -34,16 +87,9 @@ MEDICAL_RECORD_API_TIMEOUT_SECONDS = 3.0
 async def get_patient_medical_records_handler(
     patient_id: int,
     db: AsyncSession = Depends(async_get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_medical_record_access),
 ) -> list[MedicalRecordListResponse]:
-# REQ-MDR-002 / NFR-MDR-001. 특정 환자의 진료기록 목록 조회
-
-
-    # TODO(팀 확인 필요)
-    # 현재는 로그인 여부만 검증합니다.
-    # STAFF, ADMIN 또는 부서별 최종 접근 정책이 정해지면
-    # get_current_user를 require_roles 또는 공통 권한 Dependency로
-    # 교체해야 합니다.
+    """REQ-MDR-002. 특정 환자의 진료기록 목록을 조회한다."""
 
     _ = current_user
 
@@ -51,7 +97,7 @@ async def get_patient_medical_records_handler(
         async with asyncio.timeout(
             MEDICAL_RECORD_API_TIMEOUT_SECONDS
         ):
-            return await get_patient_medical_records(
+            return await medical_record_service.get_patient_medical_records(
                 db=db,
                 patient_id=patient_id,
             )
@@ -70,16 +116,9 @@ async def get_patient_medical_records_handler(
 async def get_medical_record_detail_handler(
     record_id: int,
     db: AsyncSession = Depends(async_get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_medical_record_access),
 ) -> MedicalRecordDetailResponse:
-# REQ-MDR-003 / NFR-MDR-001. 특정 진료기록 상세 조회
-
-
-    # TODO(팀 확인 필요)
-    # 현재는 로그인 여부만 검증합니다.
-    # STAFF, ADMIN 또는 부서별 최종 접근 정책이 정해지면
-    # get_current_user를 require_roles 또는 공통 권한 Dependency로
-    # 교체해야 합니다.
+    """REQ-MDR-003. 특정 진료기록의 상세 내용을 조회한다."""
 
     _ = current_user
 
@@ -87,7 +126,7 @@ async def get_medical_record_detail_handler(
         async with asyncio.timeout(
             MEDICAL_RECORD_API_TIMEOUT_SECONDS
         ):
-            return await get_medical_record_detail(
+            return await medical_record_service.get_medical_record_detail(
                 db=db,
                 record_id=record_id,
             )
