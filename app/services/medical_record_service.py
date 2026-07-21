@@ -1,16 +1,10 @@
 # app/services/medical_record_service.py
-"""진료 기록 Service (REQ-MDR-001, NFR-MDR-001)
+"""진료 기록 Service (REQ-MDR-001, REQ-MDR-002, REQ-MDR-003).
 
-처리 순서:
-  1. 환자 존재 확인 — get_patient() 재사용 (없으면 내부에서 404 raise)
-  2. 차트 넘버 중복 검사 (chart_number UNIQUE) — 중복 시 409
-  3. 이미지 검증 — 형식(jpg/png 외 422), 크기(10MB 초과 413)
-  4. X-Ray 이미지를 서버 로컬 저장소(media/xray/)에 비동기 저장
-     (확장자는 Content-Type 기준으로 결정하여 형식-확장자 불일치 방지)
-  5. medical_records + xray_images 두 테이블에 INSERT 후 commit
-     - 동시 요청으로 인한 IntegrityError(chart_number UNIQUE 위반)는 409 처리
-     - 실패 시 rollback + 저장한 파일 삭제
+Repository는 add + flush까지만 담당하고,
+commit / rollback은 Service 계층에서 담당한다.
 """
+
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -21,21 +15,102 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.medical_record import MedicalRecord
-from app.repositories import medical_record_repository
-# A(환자 담당)의 서비스 함수 재사용 — 인터페이스 계약 항목이므로 직접 쿼리하지 않는다
+from app.repositories import (
+    medical_record_repository,
+    patient_repository,
+)
+from app.repositories.medical_record_repository import (
+    get_medical_record_by_id,
+    get_medical_records_by_patient_id,
+)
+from app.schemas.medical_record import (
+    MedicalRecordDetailResponse,
+    MedicalRecordListResponse,
+)
 from app.services.patient_service import get_patient
 
-# C의 환자 삭제 로직이 media/ 폴더 기준으로 X-Ray 파일을 삭제하므로 경로를 통일한다.
+
+SYMPTOMS_PREVIEW_LENGTH = 100
+
 MEDIA_DIR = Path("media") / "xray"
 
-# Content-Type 기준으로 저장 확장자를 결정 -> 업로드 파일명과 무관하게 형식-확장자 일치 보장
 CONTENT_TYPE_EXTENSIONS = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
 }
 
-# 업로드 파일 크기 제한 (10MB)
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
+def _truncate_symptoms(symptoms: str) -> str:
+    """100자를 초과하는 증상은 100자까지 표시하고 말줄임표를 붙인다."""
+
+    if len(symptoms) <= SYMPTOMS_PREVIEW_LENGTH:
+        return symptoms
+
+    return f"{symptoms[:SYMPTOMS_PREVIEW_LENGTH]}…"
+
+
+async def get_patient_medical_records(
+    db: AsyncSession,
+    patient_id: int,
+) -> list[MedicalRecordListResponse]:
+    """REQ-MDR-002. 특정 환자의 진료기록 목록을 조회한다."""
+
+    patient = await patient_repository.get_patient_by_id(
+        db=db,
+        patient_id=patient_id,
+    )
+
+    if patient is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="환자를 찾을 수 없습니다.",
+        )
+
+    records = await get_medical_records_by_patient_id(
+        db=db,
+        patient_id=patient_id,
+    )
+
+    return [
+        MedicalRecordListResponse(
+            id=record.id,
+            chart_number=record.chart_number,
+            symptoms=_truncate_symptoms(record.symptoms),
+            created_at=record.created_at,
+        )
+        for record in records
+    ]
+
+
+async def get_medical_record_detail(
+    db: AsyncSession,
+    record_id: int,
+) -> MedicalRecordDetailResponse:
+    """REQ-MDR-003. 특정 진료기록의 상세 내용을 조회한다."""
+
+    record = await get_medical_record_by_id(
+        db=db,
+        record_id=record_id,
+    )
+
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="진료기록을 찾을 수 없습니다.",
+        )
+
+    # X-Ray 조회 정책이 확정되기 전까지 None 반환
+    xray_image_url: str | None = None
+
+    return MedicalRecordDetailResponse(
+        id=record.id,
+        chart_number=record.chart_number,
+        symptoms=record.symptoms,
+        xray_image_url=xray_image_url,
+        created_at=record.created_at,
+    )
 
 
 async def create_medical_record(
@@ -48,72 +123,93 @@ async def create_medical_record(
     xray_image: UploadFile,
     shooting_datetime: datetime | None = None,
 ) -> MedicalRecord:
-    # 1. 환자 존재 확인 (없으면 get_patient 내부에서 404 raise)
+    """REQ-MDR-001. 진료기록과 X-Ray 이미지를 등록한다."""
+
+    # 1. 환자 존재 확인
     await get_patient(db, patient_id)
 
-    # 2. 차트 넘버 중복 검사 (UNIQUE 제약) — 사전 검사
-    existing = await medical_record_repository.get_medical_record_by_chart_number(
-        db, chart_number
+    # 2. 차트 번호 중복 확인
+    existing = (
+        await medical_record_repository.get_medical_record_by_chart_number(
+            db=db,
+            chart_number=chart_number,
+        )
     )
+
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Chart number '{chart_number}' already exists",
         )
 
-    # 3-1. 이미지 형식 검증 (Content-Type 기준)
-    extension = CONTENT_TYPE_EXTENSIONS.get(xray_image.content_type or "")
+    # 3. 이미지 형식 검증
+    extension = CONTENT_TYPE_EXTENSIONS.get(
+        xray_image.content_type or ""
+    )
+
     if extension is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="X-Ray image must be a jpg or png file",
         )
 
-    # 3-2. 파일 크기 검증 (10MB 초과 시 413)
+    # 4. 이미지 크기 검증
     content = await xray_image.read()
+
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="X-Ray image must be 10MB or smaller",
         )
 
-    # 4. 이미지 로컬 저장 — 비동기(스레드 위임)로 이벤트 루프 블로킹 방지 (NFR-MDR-001)
+    # 5. 이미지 저장
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
     filename = f"{patient_id}_{uuid.uuid4().hex}{extension}"
     save_path = MEDIA_DIR / filename
-    await anyio.to_thread.run_sync(save_path.write_bytes, content)
 
-    # 5. 두 테이블 INSERT — 하나의 트랜잭션으로 묶고 commit은 Service 책임
-    #    shooting_datetime 은 NOT NULL 컬럼: 입력이 없으면 등록 시각으로 대체
+    await anyio.to_thread.run_sync(
+        save_path.write_bytes,
+        content,
+    )
+
+    # 6. 진료기록 및 이미지 DB 저장
     try:
         record = await medical_record_repository.create_medical_record(
-            db,
+            db=db,
             patient_id=patient_id,
             chart_number=chart_number,
             symptoms=symptoms,
         )
+
         image = await medical_record_repository.create_xray_image(
-            db,
+            db=db,
             record_id=record.id,
             uploader_id=uploader_id,
             image_url=str(save_path),
             shooting_datetime=shooting_datetime or datetime.now(),
         )
+
         await db.commit()
+
     except IntegrityError:
-        # 동시 요청이 사전 중복 검사를 통과해도 UNIQUE 제약에서 걸리는 경우 -> 409
         await db.rollback()
         save_path.unlink(missing_ok=True)
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Chart number '{chart_number}' already exists",
         )
+
     except Exception:
         await db.rollback()
-        save_path.unlink(missing_ok=True)  # DB 실패 시 고아 파일 정리
+        save_path.unlink(missing_ok=True)
         raise
 
-    # server_default(created_at) 값 로드 및 응답 조립
     await db.refresh(record)
-    record.xray_image = image  # 응답 스키마(MedicalRecordDetailResponse)용 임시 속성
+    await db.refresh(image)
+
+    # 현재 응답 조립을 위해 임시 속성으로 이미지 객체 연결
+    record.xray_image = image
+
     return record

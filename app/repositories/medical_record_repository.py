@@ -1,10 +1,10 @@
-# app/repositories/medical_record_repository.py
-"""진료 기록 Repository (REQ-MDR-001)
+"""진료 기록 Repository (REQ-MDR-001, REQ-MDR-002, REQ-MDR-003).
 
 팀 트랜잭션 정책:
-- Repository는 add + flush 까지만 담당
-- commit / rollback 은 Service 계층 책임
+- Repository는 add + flush까지만 담당
+- commit / rollback은 Service 계층 책임
 """
+
 from datetime import datetime
 
 from sqlalchemy import select
@@ -14,13 +14,51 @@ from app.models.medical_record import MedicalRecord
 from app.models.xray_image import XrayImage
 
 
-async def get_medical_record_by_chart_number(
-    db: AsyncSession, chart_number: str
-) -> MedicalRecord | None:
-    """차트 넘버로 진료 기록 단건 조회. (chart_number UNIQUE 중복 검사용)"""
+async def get_medical_records_by_patient_id(
+    db: AsyncSession,
+    patient_id: int,
+) -> list[MedicalRecord]:
+    """REQ-MDR-002. 특정 환자의 진료기록을 최신순으로 조회한다."""
+
     result = await db.execute(
-        select(MedicalRecord).where(MedicalRecord.chart_number == chart_number)
+        select(MedicalRecord)
+        .where(MedicalRecord.patient_id == patient_id)
+        .order_by(
+            MedicalRecord.created_at.desc(),
+            MedicalRecord.id.desc(),
+        )
     )
+
+    return list(result.scalars().all())
+
+
+async def get_medical_record_by_id(
+    db: AsyncSession,
+    record_id: int,
+) -> MedicalRecord | None:
+    """REQ-MDR-003. 진료기록 ID로 상세 내용을 조회한다."""
+
+    result = await db.execute(
+        select(MedicalRecord).where(
+            MedicalRecord.id == record_id
+        )
+    )
+
+    return result.scalar_one_or_none()
+
+
+async def get_medical_record_by_chart_number(
+    db: AsyncSession,
+    chart_number: str,
+) -> MedicalRecord | None:
+    """차트 번호 중복 확인을 위해 진료기록을 단건 조회한다."""
+
+    result = await db.execute(
+        select(MedicalRecord).where(
+            MedicalRecord.chart_number == chart_number
+        )
+    )
+
     return result.scalar_one_or_none()
 
 
@@ -31,14 +69,17 @@ async def create_medical_record(
     chart_number: str,
     symptoms: str,
 ) -> MedicalRecord:
-    """진료 기록 INSERT. flush로 PK(id)까지만 확보한다."""
+    """진료기록을 추가하고 flush하여 ID를 확보한다."""
+
     record = MedicalRecord(
         patient_id=patient_id,
         chart_number=chart_number,
         symptoms=symptoms,
     )
+
     db.add(record)
-    await db.flush()  # record.id 확보 (commit은 Service에서)
+    await db.flush()
+
     return record
 
 
@@ -50,16 +91,16 @@ async def create_xray_image(
     image_url: str,
     shooting_datetime: datetime,
 ) -> XrayImage:
-    """X-Ray 이미지 INSERT. 진료 기록과 같은 트랜잭션에서 처리한다.
+    """X-Ray 이미지 정보를 진료기록과 같은 트랜잭션에 추가한다."""
 
-    기존 XrayImage 모델 필드 기준: record_id, uploader_id, image_url, shooting_datetime
-    """
     image = XrayImage(
         record_id=record_id,
         uploader_id=uploader_id,
         image_url=image_url,
         shooting_datetime=shooting_datetime,
     )
+
     db.add(image)
     await db.flush()
+
     return image
