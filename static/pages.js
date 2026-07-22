@@ -88,12 +88,12 @@ const pages = {
         app.innerHTML = html;
         
         // 환자 정보 표시
-        document.getElementById('patient-name').innerText = `${patient.name} (${patient.gender === 'male' ? '남성' : '여성'})`;
-        document.getElementById('patient-info').innerText = `나이: ${patient.age}세 | 연락처: ${utils.formatPhoneNumber(patient.phone_number)}`;
+        document.getElementById('patient-name').innerText = `${patient.name} (${patient.gender === 'M' ? '남성' : '여성'})`;
+        document.getElementById('patient-info').innerText = `나이: ${patient.age}세 | 연락처: ${utils.formatPhoneNumber(patient.phone)}`;
         
         // 수정 폼 초기값 설정
         document.getElementById('update-name').value = patient.name;
-        document.getElementById('update-phone').value = utils.formatPhoneNumber(patient.phone_number);
+        document.getElementById('update-phone').value = utils.formatPhoneNumber(patient.phone);
         
         const updatePhoneInput = document.getElementById('update-phone');
         if (updatePhoneInput) {
@@ -409,13 +409,12 @@ const pages = {
     async handleRecordCreate(e, patientId) {
         e.preventDefault();
         const formData = new FormData();
-        formData.append('patient_id', patientId);
         formData.append('chart_number', document.getElementById('chart_number').value);
         formData.append('symptoms', document.getElementById('symptoms').value);
         formData.append('xray_image', document.getElementById('xray_image').files[0]);
 
         try {
-            await apis.createMedicalRecord(formData);
+            await apis.createMedicalRecord(patientId, formData);
             utils.showAlert('진료 기록이 등록되었습니다.', 'success');
             navigate(`/patients/${patientId}`);
         } catch (err) {
@@ -436,7 +435,7 @@ const pages = {
         const patientId = state.currentPatientId;
         const updateData = {
             name: document.getElementById('update-name').value,
-            phone_number: document.getElementById('update-phone').value.replace(/[^\d]/g, '')
+            phone: document.getElementById('update-phone').value.replace(/[^\d]/g, '')
         };
 
         try {
