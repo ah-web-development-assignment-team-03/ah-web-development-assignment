@@ -160,7 +160,7 @@ const pages = {
         document.getElementById('back-to-patient-btn').onclick = () => navigate(`/patients/${record.patient_id}`);
         
         const analysisList = document.getElementById('analysis-list');
-        if (analyses.length === 0) {
+        if (analyses.items.length === 0) {
             analysisList.innerHTML = '<p>저장된 예측 결과가 없습니다.</p>';
         } else {
             analysisList.innerHTML = `
@@ -174,9 +174,9 @@ const pages = {
                         </tr>
                     </thead>
                     <tbody>
-                        ${analyses.map(a => `
+                        ${analyses.items.map(a => `
                             <tr class="${a.is_pneumonia ? 'result-positive' : 'result-negative'}">
-                                <td>${new Date(a.created_at).toLocaleString()}</td>
+                                <td>${new Date(a.predicted_at).toLocaleString()}</td>
                                 <td><strong>${a.is_pneumonia ? 'Positive' : 'Negative'}</strong></td>
                                 <td>${a.confidence}%</td>
                                 <td>${a.ai_model}</td>
@@ -226,15 +226,15 @@ const pages = {
         // 필드 값 복원
         const queryInput = document.getElementById('admin-search-query');
         const deptSelect = document.getElementById('admin-filter-dept');
-        if (queryInput && params.query) queryInput.value = params.query;
+        if (queryInput && params.search) queryInput.value = params.search;
         if (deptSelect && params.department) deptSelect.value = params.department;
 
         const listBody = document.getElementById('admin-users-list');
-        if (users.length === 0) {
+        if (users.items.length === 0) {
             listBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">검색 결과가 없습니다.</td></tr>';
             return;
         }
-        listBody.innerHTML = users.map(u => `
+        listBody.innerHTML = users.items.map(u => `
             <tr>
                 <td>${u.id}</td>
                 <td>${u.name}</td>
@@ -243,9 +243,9 @@ const pages = {
                 <td>${utils.formatPhoneNumber(u.phone_number)}</td>
                 <td>
                     <select onchange="pages.handleRoleUpdate(${u.id}, this.value)" ${u.id === state.user.id ? 'disabled' : ''}>
-                        <option value="pending" ${u.role === 'pending' ? 'selected' : ''}>승인대기</option>
-                        <option value="staff" ${u.role === 'staff' ? 'selected' : ''}>일반회원</option>
-                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>관리자</option>
+                        <option value="pending" ${(u.role || '').toLowerCase() === 'pending' ? 'selected' : ''}>승인대기</option>
+                        <option value="staff" ${(u.role || '').toLowerCase() === 'staff' ? 'selected' : ''}>일반회원</option>
+                        <option value="admin" ${(u.role || '').toLowerCase() === 'admin' ? 'selected' : ''}>관리자</option>
                     </select>
                 </td>
                 <td>${u.is_active ? '<span class="status-badge success">활성</span>' : '<span class="status-badge error">비활성</span>'}</td>
@@ -260,7 +260,7 @@ const pages = {
         const department = document.getElementById('admin-filter-dept').value;
         
         const params = new URLSearchParams();
-        if (query) params.set('query', query);
+        if (query) params.set('search', query);   // 서버 쿼리 파라미터명은 search
         if (department) params.set('department', department);
         
         const queryString = params.toString();
@@ -274,7 +274,7 @@ const pages = {
 
     async handleRoleUpdate(userId, newRole) {
         try {
-            await apis.adminUpdateUserRole({ user_id: userId, new_role: newRole });
+            await apis.adminUpdateUserRole(userId, newRole);
             utils.showAlert('권한이 변경되었습니다.', 'success');
             this.handleAdminSearch();
         } catch (err) {
