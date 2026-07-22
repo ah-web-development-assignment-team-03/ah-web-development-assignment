@@ -30,7 +30,7 @@ const apis = {
             // 401 Unauthorized 처리 (토큰 만료 시 리프레시 시도)
             if (response.status === 401) {
                 // 로그인 요청에서 401은 리프레시 대상이 아님
-                if (url === '/users/login') {
+                if (url === '/auth/login') {
                     return { status: 401 };
                 }
                 
@@ -52,7 +52,7 @@ const apis = {
 
                 this.isRefreshing = true;
                 try {
-                    const refreshResponse = await fetch(`${API_BASE}/users/refresh`, {
+                    const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                     });
@@ -115,7 +115,7 @@ const apis = {
             if (response.status === 204) return null;
             return await response.json();
         } catch (err) {
-            if (url !== '/users/login' && !skipAlert) {
+            if (url !== '/auth/login' && !skipAlert) {
                 utils.showAlert(err.message, 'error', '오류');
             }
             throw err;
@@ -128,7 +128,7 @@ const apis = {
      * [REQ-USER-001] 사내 구성원은 이메일, 비밀번호, 이름, 소속 부서, 성별, 전화번호를 입력하여 회원가입을 할 수 있다.
      */
     async signup(userData) {
-        return await this.request('/users/signup', {
+        return await this.request('/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
@@ -140,12 +140,10 @@ const apis = {
      * [REQ-USER-002] 가입된 이메일과 비밀번호로 로그인을 할 수 있다.
      */
     async login(email, password) {
-        const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
-        return await this.request('/users/login', {
+        return await this.request('/auth/login', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
         }, true);
     },
 
@@ -154,7 +152,7 @@ const apis = {
      * [NFR-USER-001] 로그인 성공 시 Access Token(JSON Body)과 Refresh Token(HTTP-only Cookie)이 발급된다.
      */
     async refresh() {
-        return await fetch(`${API_BASE}/users/refresh`, {
+        return await fetch(`${API_BASE}/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -165,7 +163,7 @@ const apis = {
      * [REQ-USER-003] 로그인된 사용자는 로그아웃을 할 수 있다.
      */
     async logout() {
-        return await this.request('/users/logout', { method: 'POST' });
+        return await this.request('/auth/logout', { method: 'POST' });
     },
 
     /**
