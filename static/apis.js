@@ -128,7 +128,7 @@ const apis = {
      * [REQ-USER-001] 사내 구성원은 이메일, 비밀번호, 이름, 소속 부서, 성별, 전화번호를 입력하여 회원가입을 할 수 있다.
      */
     async signup(userData) {
-        return await this.request('/users/signup', {
+        return await this.request('/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
