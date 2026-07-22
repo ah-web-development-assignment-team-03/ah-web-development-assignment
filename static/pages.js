@@ -243,9 +243,10 @@ const pages = {
                 <td>${utils.formatPhoneNumber(u.phone_number)}</td>
                 <td>
                     <select onchange="pages.handleRoleUpdate(${u.id}, this.value)" ${u.id === state.user.id ? 'disabled' : ''}>
-                        <option value="pending" ${(u.role || '').toLowerCase() === 'pending' ? 'selected' : ''}>승인대기</option>
-                        <option value="staff" ${(u.role || '').toLowerCase() === 'staff' ? 'selected' : ''}>일반회원</option>
-                        <option value="admin" ${(u.role || '').toLowerCase() === 'admin' ? 'selected' : ''}>관리자</option>
+                        <option value="" selected>권한 변경</option>
+                        <option value="pending">승인대기</option>
+                        <option value="staff">일반회원</option>
+                        <option value="admin">관리자</option>
                     </select>
                 </td>
                 <td>${u.is_active ? '<span class="status-badge success">활성</span>' : '<span class="status-badge error">비활성</span>'}</td>
@@ -273,6 +274,7 @@ const pages = {
     },
 
     async handleRoleUpdate(userId, newRole) {
+        if (!newRole) return;   // placeholder('권한 변경', value="") 선택 시 빈 role 전송 방지
         try {
             await apis.adminUpdateUserRole(userId, newRole);
             utils.showAlert('권한이 변경되었습니다.', 'success');
