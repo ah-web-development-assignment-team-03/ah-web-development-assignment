@@ -38,3 +38,6 @@ htmlcov/
 
 # Alembic
 alembic/versions/*.pyc
+
+# SQLite local DB (Alembic migrations manage schema; do not commit local DB files)
+*.db

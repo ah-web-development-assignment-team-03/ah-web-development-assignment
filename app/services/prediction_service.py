@@ -1,18 +1,21 @@
-"""AI 폐렴 예측 결과 Service (REQ-PRED-002).
+from pathlib import Path
 
-REQ-PRED-001(예측 실행)은 별도 담당(#49)에서 구현하며,
-본 파일은 조회(목록) 로직만 담당한다.
-"""
-
+import anyio
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories import prediction_repository
+from app.repositories import medical_record_repository, prediction_repository
 from app.repositories.medical_record_repository import get_medical_record_by_id
 from app.schemas.prediction import (
     PredictionResultItem,
     PredictionResultListResponse,
+    PredictionRunResponse,
 )
+from worker.model import MODEL_TAG, predict
+
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 async def get_predictions_for_record(
@@ -24,8 +27,7 @@ async def get_predictions_for_record(
 ) -> PredictionResultListResponse:
     """REQ-PRED-002. 진료기록의 AI 폐렴 예측 결과를 목록으로 조회한다."""
 
-    record = await get_medical_record_by_id(db=db, record_id=record_id)
-
+    record = await medical_record_repository.get_medical_record_by_id(db=db, record_id=record_id)
     if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -62,3 +64,84 @@ async def get_predictions_for_record(
         size=size,
         total=total,
     )
+
+
+def _to_response(result, *, cached: bool) -> PredictionRunResponse:
+    return PredictionRunResponse(
+        id=result.id,
+        is_pneumonia=result.is_pneumonia,
+        confidence=float(result.confidence),
+        heatmap_url=result.heatmap_url,
+        predicted_at=result.created_at,
+        ai_model=result.ai_model,
+        cached=cached,
+    )
+
+
+async def run_prediction(
+    db: AsyncSession,
+    record_id: int,
+) -> PredictionRunResponse:
+    """REQ-PRED-001. 진료기록 ID로 폐렴 예측을 실행하거나 캐시된 결과를 반환한다."""
+
+    # 1. 진료기록 존재 확인
+    record = await medical_record_repository.get_medical_record_by_id(db, record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="진료기록을 찾을 수 없습니다.",
+        )
+
+    # 2. X-ray 이미지 존재 확인
+    xray = await prediction_repository.get_xray_image_by_record_id(db, record_id)
+    if xray is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="예측에 사용할 X-ray 이미지가 없습니다.",
+        )
+
+    # 3. 캐시 조회
+    cached_result = await prediction_repository.get_cached_result(db, record_id, MODEL_TAG)
+    if cached_result is not None:
+        return _to_response(cached_result, cached=True)
+
+    # 4. 추론 수행 (CPU 동기 작업 → 스레드 위임)
+    image_path = str(_PROJECT_ROOT / xray.image_url)
+    try:
+        prediction = await anyio.to_thread.run_sync(predict, image_path, abandon_on_cancel=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="폐렴 예측 처리 중 오류가 발생했습니다.",
+        ) from exc
+
+    # 5. 저장
+    try:
+        result = await prediction_repository.save_result(
+            db,
+            record_id=record_id,
+            is_pneumonia=prediction["is_pneumonia"],
+            confidence=prediction["confidence"],
+            heatmap_url=prediction.get("heatmap_url"),
+            ai_model=prediction["ai_model"],
+        )
+        await db.commit()
+        await db.refresh(result)
+        return _to_response(result, cached=False)
+
+    except IntegrityError:
+        await db.rollback()
+        saved = await prediction_repository.get_cached_result(db, record_id, MODEL_TAG)
+        if saved is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="폐렴 예측 처리 중 오류가 발생했습니다.",
+            )
+        return _to_response(saved, cached=True)
+
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="폐렴 예측 처리 중 오류가 발생했습니다.",
+        )
