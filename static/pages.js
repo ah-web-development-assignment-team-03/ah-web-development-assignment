@@ -62,8 +62,8 @@ const pages = {
                 <td>${p.id}</td>
                 <td>${p.name}</td>
                 <td>${p.age}</td>
-                <td>${p.gender === 'male' ? '남성' : '여성'}</td>
-                <td>${utils.formatPhoneNumber(p.phone_number)}</td>
+                <td>${p.gender === 'M' ? '남성' : '여성'}</td>
+                <td>${utils.formatPhoneNumber(p.phone)}</td>
                 <td><button onclick="navigate('/patients/${p.id}')">상세보기</button></td>
             </tr>
         `).join('');
@@ -373,7 +373,7 @@ const pages = {
             name: document.getElementById('name').value,
             age: parseInt(document.getElementById('age').value),
             gender: document.getElementById('gender').value,
-            phone_number: document.getElementById('phone_number').value.replace(/[^\d]/g, '')
+            phone: document.getElementById('phone_number').value.replace(/[^\d]/g, '')
         };
         
         try {
