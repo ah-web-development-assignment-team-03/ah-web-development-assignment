@@ -42,16 +42,20 @@ def _recreate_ai_analysis_results(*, heatmap_nullable: bool, unique_record_model
         *constraints,
     )
 
+    # downgrade 시 heatmap_url=NULL 행이 존재하면 NOT NULL 컬럼으로 복사할 수 없으므로
+    # 빈 문자열로 대체한다.
+    heatmap_expr = "heatmap_url" if heatmap_nullable else "COALESCE(heatmap_url, '')"
+
     op.execute(
         sa.text(
-            """
+            f"""
             INSERT INTO _ai_analysis_results_new (
                 id, record_id, is_pneumonia, confidence,
                 heatmap_url, ai_model, created_at, updated_at
             )
             SELECT
                 id, record_id, is_pneumonia, confidence,
-                heatmap_url, ai_model, created_at, updated_at
+                {heatmap_expr}, ai_model, created_at, updated_at
             FROM ai_analysis_results
             """
         )

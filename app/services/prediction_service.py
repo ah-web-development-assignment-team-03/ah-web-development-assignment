@@ -66,7 +66,7 @@ async def run_prediction(
     # 4. 추론 수행 (CPU 동기 작업 → 스레드 위임)
     image_path = str(_PROJECT_ROOT / xray.image_url)
     try:
-        prediction = await anyio.to_thread.run_sync(predict, image_path)
+        prediction = await anyio.to_thread.run_sync(predict, image_path, abandon_on_cancel=True)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
