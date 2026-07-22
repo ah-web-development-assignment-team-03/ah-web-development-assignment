@@ -35,7 +35,8 @@ const pages = {
     },
 
     async renderPatients(params = {}) {
-        const patients = await apis.getPatients(params);
+        const response = await apis.getPatients(params);
+        const patients = response.items;
         const html = await utils.loadTemplate('patients');
         if (state.currentPage !== '/patients') return;
         const app = document.getElementById('app');
@@ -73,7 +74,7 @@ const pages = {
         const html = await utils.loadTemplate('patient-create');
         document.getElementById('app').innerHTML = html;
         
-        const phoneInput = document.getElementById('phone_number');
+        const phoneInput = document.getElementById('phone');
         if (phoneInput) {
             phoneInput.addEventListener('input', (e) => utils.handlePhoneInput(e));
         }
@@ -373,7 +374,7 @@ const pages = {
             name: document.getElementById('name').value,
             age: parseInt(document.getElementById('age').value),
             gender: document.getElementById('gender').value,
-            phone: document.getElementById('phone_number').value.replace(/[^\d]/g, '')
+            phone: document.getElementById('phone').value.replace(/[^\d]/g, '')
         };
         
         try {
