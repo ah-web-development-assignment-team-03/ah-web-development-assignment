@@ -166,7 +166,7 @@ async function navigate(path, pushState = true) {
             const patientId = pathname.split('/')[2];
             await pages.renderRecordCreate(patientId);
         } else if (pathname === '/my-page') {
-            pages.renderMyPage();
+            await pages.renderMyPage();
         } else if (pathname === '/admin/users') {
             await pages.renderAdminUsers(searchParams);
         } else if (pathname.startsWith('/patients/')) {

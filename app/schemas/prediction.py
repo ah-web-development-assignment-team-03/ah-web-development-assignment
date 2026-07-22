@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PredictionResultItem(BaseModel):
-  """REQ-PRED-001/002 공용 예측 결과 항목."""
-  
+    """REQ-PRED-001/002 공용 예측 결과 항목."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
