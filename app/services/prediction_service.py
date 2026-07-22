@@ -1,14 +1,3 @@
-"""REQ-PRED-001 폐렴 예측 Service.
-
-처리 흐름:
-  1. 진료기록 존재 확인 (404)
-  2. X-ray 이미지 존재 확인 (404)
-  3. 캐시 조회 (record_id + ai_model)
-     - 히트: 저장된 결과 반환 (cached=True)
-     - 미스: predict() → 저장 → 반환 (cached=False)
-  4. IntegrityError(동시 요청 충돌) → rollback 후 재조회 → 반환 (cached=True)
-"""
-
 from pathlib import Path
 
 import anyio
@@ -16,12 +5,65 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories import medical_record_repository
-from app.repositories import prediction_repository
-from app.schemas.prediction import PredictionRunResponse
+from app.repositories import medical_record_repository, prediction_repository
+from app.repositories.medical_record_repository import get_medical_record_by_id
+from app.schemas.prediction import (
+    PredictionResultItem,
+    PredictionResultListResponse,
+    PredictionRunResponse,
+)
 from worker.model import MODEL_TAG, predict
 
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+async def get_predictions_for_record(
+    db: AsyncSession,
+    record_id: int,
+    *,
+    page: int,
+    size: int,
+) -> PredictionResultListResponse:
+    """REQ-PRED-002. 진료기록의 AI 폐렴 예측 결과를 목록으로 조회한다."""
+
+    record = await medical_record_repository.get_medical_record_by_id(db=db, record_id=record_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="진료기록을 찾을 수 없습니다.",
+        )
+
+    results = await prediction_repository.get_predictions_by_record_id(
+        db=db,
+        record_id=record_id,
+        page=page,
+        size=size,
+    )
+
+    total = await prediction_repository.count_predictions_by_record_id(
+        db=db,
+        record_id=record_id,
+    )
+
+    items = [
+        PredictionResultItem(
+            id=result.id,
+            is_pneumonia=result.is_pneumonia,
+            confidence=float(result.confidence),
+            heatmap_url=result.heatmap_url,
+            predicted_at=result.created_at,
+            ai_model=result.ai_model,
+        )
+        for result in results
+    ]
+
+    return PredictionResultListResponse(
+        items=items,
+        page=page,
+        size=size,
+        total=total,
+    )
 
 
 def _to_response(result, *, cached: bool) -> PredictionRunResponse:
@@ -40,7 +82,7 @@ async def run_prediction(
     db: AsyncSession,
     record_id: int,
 ) -> PredictionRunResponse:
-    """진료기록 ID로 폐렴 예측을 실행하거나 캐시된 결과를 반환한다."""
+    """REQ-PRED-001. 진료기록 ID로 폐렴 예측을 실행하거나 캐시된 결과를 반환한다."""
 
     # 1. 진료기록 존재 확인
     record = await medical_record_repository.get_medical_record_by_id(db, record_id)
@@ -88,7 +130,6 @@ async def run_prediction(
         return _to_response(result, cached=False)
 
     except IntegrityError:
-        # 동시 요청 충돌: 먼저 저장한 쪽이 UNIQUE 제약을 선점함
         await db.rollback()
         saved = await prediction_repository.get_cached_result(db, record_id, MODEL_TAG)
         if saved is None:

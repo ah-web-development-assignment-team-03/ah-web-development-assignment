@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PredictionResultItem(BaseModel):
-    """REQ-PRED-002 items[] 항목과 동일한 구조 — 001·002 공용."""
-
+  """REQ-PRED-001/002 공용 예측 결과 항목."""
+  
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -15,6 +15,14 @@ class PredictionResultItem(BaseModel):
     predicted_at: datetime
     ai_model: str
 
+
+class PredictionResultListResponse(BaseModel):
+    """REQ-PRED-002 목록 조회 응답."""
+
+    items: list[PredictionResultItem]
+    page: int
+    size: int
+    total: int
 
 class PredictionRunResponse(PredictionResultItem):
     """REQ-PRED-001 전용 — 캐시 히트 여부를 함께 반환한다."""
