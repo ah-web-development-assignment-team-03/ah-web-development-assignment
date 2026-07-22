@@ -202,8 +202,12 @@ const apis = {
      * 회원 탈퇴
      * [REQ-USER-009] 로그인된 사용자는 회원 탈퇴를 할 수 있다.
      */
-    async deleteMe() {
-        return await this.request('/users/me', { method: 'DELETE' });
+    async deleteMe(currentPassword) {
+        return await this.request('/users/me', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: currentPassword })
+        }, true);
     },
 
     // --- Patients ---
