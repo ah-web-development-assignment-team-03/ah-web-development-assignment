@@ -13,7 +13,7 @@ from app.repositories.user_repository import (
     get_user_by_email,
     get_user_by_phone_number,
 )
-from app.schemas.user import DEPARTMENT_API_TO_DB, MyInfoUpdateRequest, UserCreate
+from app.schemas.user import DEPARTMENT_API_TO_DB, GENDER_API_TO_DB, MyInfoUpdateRequest, UserCreate
 
 PASSWORD_POLICY_MESSAGE = "비밀번호는 대소문자, 특수문자, 숫자를 각 1개씩 포함한 8자리 이상이어야 합니다."
 
@@ -39,8 +39,8 @@ async def register_user(db: AsyncSession, user_data: UserCreate) -> User:
         email=user_data.email,
         hashed_password=hash_password(user_data.password),
         name=user_data.name,
-        department=user_data.department,
-        gender=user_data.gender,
+        department=DEPARTMENT_API_TO_DB[user_data.department],
+        gender=GENDER_API_TO_DB[user_data.gender],
         phone_number=user_data.phone_number,
         role=Role.PENDING,
     )

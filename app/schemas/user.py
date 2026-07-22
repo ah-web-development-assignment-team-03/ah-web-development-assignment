@@ -42,6 +42,9 @@ ROLE_DB_TO_API: dict[Role, RoleAPI] = {
 DEPARTMENT_API_TO_DB: dict[DepartmentAPI, Department] = {
     api: db for db, api in DEPARTMENT_DB_TO_API.items()
 }
+GENDER_API_TO_DB: dict[GenderAPI, Gender] = {
+    api: db for db, api in GENDER_DB_TO_API.items()
+}
 
 
 class MyPageResponse(BaseModel):
@@ -109,8 +112,8 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(..., max_length=255)
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=1, max_length=20)
-    department: Department
-    gender: Gender
+    department: DepartmentAPI
+    gender: GenderAPI
     phone_number: str = Field(..., max_length=20)
 
 
