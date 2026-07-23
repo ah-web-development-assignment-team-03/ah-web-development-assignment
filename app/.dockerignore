@@ -1,0 +1,49 @@
+# 환경 변수 파일
+.env
+.env.*
+!.env.example
+
+# 파이썬 캐시
+__pycache__/
+*.py[cod]
+*.pyc
+
+# 라이브러리 캐시
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 가상환경
+.venv/
+venv/
+
+# 도커 관련
+<!-- Dockerfile -->
+<!-- docker-compose*.yml -->
+
+# 문서
+docs/
+README.md
+*.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Git
+.git/
+.github/
+
+# OS
+.DS_Store
+
+# 테스트
+tests/
+
+# DB 파일
+*.db
+*.sqlite
+ai_health.db
