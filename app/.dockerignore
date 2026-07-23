@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 
 # 라이브러리 캐시 (mypy 등)
+.cache/
 .mypy_cache/
 .ruff_cache/
 .pytype/
@@ -42,5 +43,10 @@ dist/
 # Git 및 운영체제 파일
 .git/
 .gitignore
+.github/
 .DS_Store
 Thumbs.db
+
+# 테스트와 로컬 DB
+tests/
+*.db

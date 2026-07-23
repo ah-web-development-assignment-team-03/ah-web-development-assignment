@@ -17,8 +17,19 @@ RUN apt-get update \
 
 COPY pyproject.toml uv.lock ./
 
+# 잠금 파일에서 CUDA/GPU 패키지를 제외한 나머지 의존성을 설치한다.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv venv /opt/venv \
+    && uv export --frozen --no-dev --no-hashes --no-emit-project \
+    | grep -viE '^(torch|torchvision|triton|pytorch-triton)([=<>~!; ]|$)|^(nvidia|cuda)-' \
+    > /tmp/requirements.txt \
+    && uv pip install --python /opt/venv -r /tmp/requirements.txt
+
+# 모델 코드는 CPU(fp32) 추론만 사용하므로 CPU 전용 PyTorch를 설치한다.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.13.0+cpu torchvision==0.28.0+cpu
 
 
 # 2단계: FastAPI 실행 이미지
