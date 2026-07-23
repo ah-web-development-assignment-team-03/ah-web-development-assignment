@@ -1,0 +1,44 @@
+# The build context is the project root, so these rules mirror app/.dockerignore.
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Library and test caches
+.cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Docker configuration
+Dockerfile
+Dockerfile.*
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# Documentation
+docs/
+README.md
+
+# IDE and OS settings
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Version control, tests, and local data
+.git/
+.github/
+tests/
+*.db
