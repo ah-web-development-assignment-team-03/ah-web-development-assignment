@@ -1,3 +1,8 @@
+# 프로젝트명을 고정한다. 미지정 시 compose 는 디렉터리명에서 유도하는데,
+# 이 폴더명(한글 포함)은 정규화하면 "26___pbl" 이 되어 이미지 태그로 부적합하다
+# (Docker 는 3연속 언더스코어 '___' 를 거부 → "invalid reference format").
+name: ai-health
+
 services:
   fastapi:
     build:
@@ -7,7 +12,13 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
+      # 프로젝트 루트 전체를 /app 에 마운트한다.
+      #  - ./app:/app 로 두면 /app 이 호스트 app/ 로 덮여 worker/ 가 사라져
+      #    `from worker.model import load_models` 가 실패한다.
+      #  - DB_PATH="./ai_health.db" 는 CWD(/app) 기준이므로, 루트를 마운트해야
+      #    호스트 프로젝트 루트의 db 파일과 같은 위치가 되어 데이터가 유지된다.
+      # 의존성은 이미지의 /opt/venv(= /app 밖)에 있어 이 마운트에 덮이지 않는다.
+      - .:/app
       - static_volume:/app/static
       - media_volume:/app/media
     healthcheck:
@@ -15,28 +26,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
-    depends_on:
-      - mysql
-
-  mysql:
-    image: mysql:8.0
-    volumes:
-      - mysql_volume:/var/lib/mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_PORT: ${DB_PORT}
-    ports:
-      - "${DB_PORT}:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 5
 
 
 volumes:
-  mysql_volume:
   static_volume:
   media_volume:

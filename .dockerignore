@@ -1,0 +1,61 @@
+# ── Docker 빌드 컨텍스트 제외 목록 ───────────────────────────────────────────
+# 위치: 빌드 컨텍스트 루트(./.dockerignore).
+# docker-compose 의 build.context 가 "." 이므로 Docker 는 이 파일을 항상 적용한다.
+# (BuildKit 은 app/Dockerfile.dockerignore 도 인식하지만, 컨텍스트 루트가 가장 이식성이 높다)
+
+# 환경 변수 / 시크릿
+.env
+.env.*
+
+# 파이썬 캐시 / 컴파일 산출물
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# 툴 / 테스트 캐시
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 가상환경 (호스트 macOS 바이너리 — 이미지에서 /opt/venv 로 새로 설치)
+.venv/
+venv/
+env/
+ENV/
+
+# 로컬 SQLite DB (컨테이너에서 새로 생성/마운트)
+*.db
+
+# 도커 설정 파일 자체
+docker-compose.yml
+app/Dockerfile
+.dockerignore
+
+# 문서 / 리드미
+docs/
+README.md
+*.md
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 버전 관리 / CI
+.git/
+.gitignore
+.github/
+
+# 런타임에 볼륨으로 마운트되는 미디어, 테스트 코드
+media/
+tests/
+
+# ⚠️ worker/models/*.pth (5개, 총 136MB) 는 절대 제외하지 않는다.
+#    app/main.py 가 `from worker.model import load_models` 로 로드하므로 없으면 앱이 죽는다.
+#    위 규칙 어느 것도 worker/ 하위를 건드리지 않으므로 모델 가중치는 이미지에 포함된다.
