@@ -297,7 +297,7 @@ const apis = {
      * [REQ-PRED-001] 진료기록에 등록된 X-ray 이미지를 활용하여 폐렴 여부를 예측한다.
      */
     async predictPneumonia(recordId) {
-        return await this.request(`/medical-records/${recordId}/predict`, { method: 'POST' });
+        return await this.request(`/medical-records/${recordId}/predictions`, { method: 'POST' });
     },
 
     /**
@@ -305,7 +305,7 @@ const apis = {
      * [REQ-PRED-002] 특정 진료기록에 대해 수행된 모든 AI 예측 결과 목록을 조회한다.
      */
     async getMedicalRecordAnalyses(recordId) {
-        return await this.request(`/medical-records/${recordId}/analyses`);
+        return await this.request(`/medical-records/${recordId}/predictions`);
     },
 
     // --- Admin ---
@@ -323,11 +323,12 @@ const apis = {
      * 유저 권한 수정 (관리자 전용)
      * [REQ-USER-005] 관리자 권한을 가진 유저는 다른 유저의 권한을 수정할 수 있다.
      */
-    async adminUpdateUserRole(roleData) {
-        return await this.request('/admin/users/role', {
+    async adminUpdateUserRole(userId, newRole) {
+        // 서버 Role enum 은 대문자(PENDING/STAFF/ADMIN). 드롭다운 소문자 value 를 대문자로 변환해 전송.
+        return await this.request(`/admin/users/${userId}/role`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(roleData)
+            body: JSON.stringify({ role: newRole.toUpperCase() })
         });
     }
 };
