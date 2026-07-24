@@ -7,14 +7,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
-      - static_volume:/app/static
+      - .:/app  
       - media_volume:/app/media
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/healthcheck || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3
+      start_period: 120s
     depends_on:
       - mysql
 
@@ -38,5 +38,4 @@ services:
 
 volumes:
   mysql_volume:
-  static_volume:
   media_volume:
