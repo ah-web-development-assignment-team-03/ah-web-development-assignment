@@ -3,8 +3,7 @@ FROM python:3.13-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    UV_PROJECT_ENVIRONMENT=/opt/venv
+    UV_LINK_MODE=copy
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /uvx /bin/
 
@@ -15,13 +14,25 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
 
-FROM python:3.13-slim
+# Install locked dependencies without CUDA packages, then install the CPU-only
+# PyTorch wheels separately to keep the runtime image small.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venv \
+    && uv export --frozen --no-dev --no-hashes --no-emit-project \
+        | grep -viE '^(torch|torchvision|triton|pytorch-triton)([=<>~!; ]|$)|^(nvidia|cuda)-' \
+        > /tmp/requirements.txt \
+    && uv pip install --python /opt/venv -r /tmp/requirements.txt \
+    && uv pip install --python /opt/venv \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch torchvision
+
+FROM python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
