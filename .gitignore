@@ -41,3 +41,6 @@ alembic/versions/*.pyc
 
 # SQLite local DB (Alembic migrations manage schema; do not commit local DB files)
 *.db
+
+# Media uploads (user-uploaded files should not be committed)
+media/xray/
