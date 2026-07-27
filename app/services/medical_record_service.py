@@ -18,6 +18,7 @@ from app.models.medical_record import MedicalRecord
 from app.repositories import (
     medical_record_repository,
     patient_repository,
+    prediction_repository,
 )
 from app.repositories.medical_record_repository import (
     get_medical_record_by_id,
@@ -101,14 +102,15 @@ async def get_medical_record_detail(
             detail="진료기록을 찾을 수 없습니다.",
         )
 
-    # X-Ray 조회 정책이 확정되기 전까지 None 반환
-    xray_image_url: str | None = None
+    xray = await prediction_repository.get_xray_image_by_record_id(db, record_id)
+    xray_image_url = f"/{xray.image_url.replace(chr(92), '/')}" if xray else None
 
     return MedicalRecordDetailResponse(
         id=record.id,
         chart_number=record.chart_number,
         symptoms=record.symptoms,
         xray_image_url=xray_image_url,
+        patient_id=record.patient_id,
         created_at=record.created_at,
     )
 

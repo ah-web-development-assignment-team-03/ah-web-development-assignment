@@ -16,8 +16,6 @@ down_revision: Union[str, Sequence[str], None] = '18dd682af107'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
-
 
 def _recreate_ai_analysis_results(*, heatmap_nullable: bool, unique_record_model: bool) -> None:
     constraints = [
@@ -31,14 +29,14 @@ def _recreate_ai_analysis_results(*, heatmap_nullable: bool, unique_record_model
 
     op.create_table(
         "_ai_analysis_results_new",
-        sa.Column("id", BIGINT, autoincrement=True, nullable=False),
-        sa.Column("record_id", BIGINT, nullable=False),
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("record_id", sa.BigInteger(), nullable=False),
         sa.Column("is_pneumonia", sa.Boolean(), nullable=False),
         sa.Column("confidence", sa.Numeric(precision=5, scale=2), nullable=False),
         sa.Column("heatmap_url", sa.String(length=255), nullable=heatmap_nullable),
         sa.Column("ai_model", sa.String(length=50), nullable=False),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("(CURRENT_TIMESTAMP)"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("(CURRENT_TIMESTAMP)"), nullable=True),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
         *constraints,
     )
 
@@ -61,7 +59,6 @@ def _recreate_ai_analysis_results(*, heatmap_nullable: bool, unique_record_model
         )
     )
 
-    op.drop_index(op.f("ix_ai_analysis_results_record_id"), table_name="ai_analysis_results")
     op.drop_table("ai_analysis_results")
     op.rename_table("_ai_analysis_results_new", "ai_analysis_results")
     op.create_index(
