@@ -15,6 +15,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - media_volume:/app/media
     healthcheck:
       test:
         - CMD
@@ -73,8 +74,6 @@ services:
       - media_volume:/app/media
     depends_on:
       redis:
-        condition: service_healthy
-      mysql:
         condition: service_healthy
     restart: unless-stopped
 
