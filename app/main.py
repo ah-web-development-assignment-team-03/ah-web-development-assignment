@@ -2,11 +2,11 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import anyio
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
+from app.core import redis_client
 from app.apis.practice_apis import router as practice_router
 from app.apis.admin_users import router as admin_users_router
 from app.apis.auth import router as auth_router
@@ -18,9 +18,10 @@ from app.apis.predictions import router as predictions_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from worker.model import load_models
-    await anyio.to_thread.run_sync(load_models)
-    yield
+    try:
+        yield
+    finally:
+        await redis_client.redis.aclose()
 
 
 app = FastAPI(lifespan=lifespan)
