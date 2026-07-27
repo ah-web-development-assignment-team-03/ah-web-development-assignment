@@ -36,7 +36,7 @@ const pages = {
 
     async renderPatients(params = {}) {
         const response = await apis.getPatients(params);
-        const patients = response.items;
+        const { items: patients, total, page, size } = response;
         const html = await utils.loadTemplate('patients');
         if (state.currentPage !== '/patients') return;
         const app = document.getElementById('app');
@@ -52,7 +52,9 @@ const pages = {
         if (genderSelect && params.gender) genderSelect.value = params.gender;
         if (minAgeInput && params.min_age) minAgeInput.value = params.min_age;
         if (maxAgeInput && params.max_age) maxAgeInput.value = params.max_age;
-        
+
+        document.getElementById('patients-total').innerText = `총 ${total}명`;
+
         const listBody = document.getElementById('patients-list');
         if (patients.length === 0) {
             listBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">검색 결과가 없습니다.</td></tr>';
@@ -63,11 +65,51 @@ const pages = {
                 <td>${p.id}</td>
                 <td>${p.name}</td>
                 <td>${p.age}</td>
-                <td>${p.gender === 'M' ? '남성' : '여성'}</td>
+                <td>${p.gender === 'M' ? '남성' : p.gender === 'F' ? '여성' : '미입력'}</td>
                 <td>${utils.formatPhoneNumber(p.phone)}</td>
                 <td><button onclick="navigate('/patients/${p.id}')">상세보기</button></td>
             </tr>
         `).join('');
+
+        const totalPages = Math.ceil(total / size);
+        if (totalPages <= 1) return;
+
+        const buildPagePath = (pageNum) => {
+            const qs = new URLSearchParams(params);
+            qs.set('page', pageNum);
+            return `/patients?${qs.toString()}`;
+        };
+
+        const buttons = [];
+
+        if (page > 1) {
+            buttons.push(`<button onclick="navigate('${buildPagePath(page - 1)}')">이전</button>`);
+        }
+
+        const start = Math.max(1, page - 2);
+        const end = Math.min(totalPages, page + 2);
+
+        if (start > 1) {
+            buttons.push(`<button onclick="navigate('${buildPagePath(1)}')">1</button>`);
+            if (start > 2) buttons.push(`<span style="align-self:center;">…</span>`);
+        }
+        for (let i = start; i <= end; i++) {
+            if (i === page) {
+                buttons.push(`<button disabled style="font-weight:bold; opacity:1; background:var(--primary-color); color:#fff;">${i}</button>`);
+            } else {
+                buttons.push(`<button onclick="navigate('${buildPagePath(i)}')">${i}</button>`);
+            }
+        }
+        if (end < totalPages) {
+            if (end < totalPages - 1) buttons.push(`<span style="align-self:center;">…</span>`);
+            buttons.push(`<button onclick="navigate('${buildPagePath(totalPages)}')">${totalPages}</button>`);
+        }
+
+        if (page < totalPages) {
+            buttons.push(`<button onclick="navigate('${buildPagePath(page + 1)}')">다음</button>`);
+        }
+
+        document.getElementById('pagination').innerHTML = buttons.join('');
     },
 
     async renderPatientCreate() {
@@ -89,7 +131,8 @@ const pages = {
         app.innerHTML = html;
         
         // 환자 정보 표시
-        document.getElementById('patient-name').innerText = `${patient.name} (${patient.gender === 'M' ? '남성' : '여성'})`;
+        const genderLabel = patient.gender === 'M' ? '남성' : patient.gender === 'F' ? '여성' : '미입력';
+        document.getElementById('patient-name').innerText = `${patient.name} (${genderLabel})`;
         document.getElementById('patient-info').innerText = `나이: ${patient.age}세 | 연락처: ${utils.formatPhoneNumber(patient.phone)}`;
         
         // 수정 폼 초기값 설정
@@ -108,15 +151,19 @@ const pages = {
         state.currentPatientId = patientId;
 
         const listBody = document.getElementById('records-list');
-        listBody.innerHTML = records.map(r => `
-            <tr>
-                <td>${r.id}</td>
-                <td>${r.chart_number}</td>
-                <td>${r.symptoms}</td>
-                <td>${new Date(r.created_at).toLocaleString()}</td>
-                <td><button onclick="navigate('/medical-records/${r.id}')">상세보기</button></td>
-            </tr>
-        `).join('');
+        if (records.length === 0) {
+            listBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;">등록된 진료 기록이 없습니다.</td></tr>';
+        } else {
+            listBody.innerHTML = records.map(r => `
+                <tr>
+                    <td>${r.id}</td>
+                    <td>${r.chart_number}</td>
+                    <td>${r.symptoms}</td>
+                    <td>${new Date(r.created_at).toLocaleString()}</td>
+                    <td><button onclick="navigate('/medical-records/${r.id}')">상세보기</button></td>
+                </tr>
+            `).join('');
+        }
     },
 
     async renderRecordCreate(patientId) {
