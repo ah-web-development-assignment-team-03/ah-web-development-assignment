@@ -28,6 +28,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.0
@@ -49,5 +51,35 @@ services:
       retries: 10
       start_period: 30s
 
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_volume:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ai-worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    entrypoint: sh -c "python -m worker.main"
+    volumes:
+      - ./worker:/app/worker
+      - media_volume:/app/media
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   mysql_volume:
+  static_volume:
+  media_volume:
+  redis_volume:
