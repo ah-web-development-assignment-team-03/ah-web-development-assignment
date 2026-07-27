@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db.databases import Base
@@ -14,12 +14,12 @@ class AIAnalysisResult(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger,
         primary_key=True,
         autoincrement=True,
     )
     record_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger,
         ForeignKey("medical_records.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

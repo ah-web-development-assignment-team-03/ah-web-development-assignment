@@ -7,7 +7,7 @@ ERD 기준:
 """
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db.databases import Base
@@ -18,14 +18,14 @@ class MedicalRecord(Base):
 
     # PK: bigint, auto increment
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+        BigInteger, primary_key=True, autoincrement=True
     )
 
     # FK: 환자 정보 테이블 참조 (NOT NULL)
     # ERD: Ref medical_records.patient_id > patients.id [delete: cascade]
     # -> 환자 삭제 시 해당 환자의 진료 기록도 DB 차원에서 함께 삭제
     patient_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger,
         ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
         comment="환자 정보 테이블 FK",
