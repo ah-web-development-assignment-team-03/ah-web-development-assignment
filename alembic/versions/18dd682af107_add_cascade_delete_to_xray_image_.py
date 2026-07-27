@@ -23,16 +23,10 @@ def _recreate_xray_images(*, cascade_user_delete: bool) -> None:
 
     op.create_table(
         "_xray_images_new",
-        sa.Column(
-            "id",
-            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
-            primary_key=True,
-            autoincrement=True,
-            nullable=False,
-        ),
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True, nullable=False),
         sa.Column(
             "record_id",
-            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            sa.BigInteger(),
             sa.ForeignKey("medical_records.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -44,12 +38,7 @@ def _recreate_xray_images(*, cascade_user_delete: bool) -> None:
         ),
         sa.Column("image_url", sa.String(length=2048), nullable=False),
         sa.Column("shooting_datetime", sa.DateTime(), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
-            nullable=False,
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
     )
 
     op.execute(
