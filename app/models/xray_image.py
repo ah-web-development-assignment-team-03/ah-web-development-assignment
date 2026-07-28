@@ -5,20 +5,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from app.core.db.databases import Base
 
-BIGINT_TYPE = BigInteger().with_variant(Integer, "sqlite")
 
 class XrayImage(Base):
     __tablename__ = "xray_images"
 
     id: Mapped[int] = mapped_column(
-        BIGINT_TYPE,
+        BigInteger,
         primary_key=True,
         autoincrement=True,
     )
 
     # medical_records 테이블의 id 참조
     record_id: Mapped[int] = mapped_column(
-        BIGINT_TYPE,
+        BigInteger,
         ForeignKey("medical_records.id", ondelete="CASCADE"),
         nullable=False,
     )

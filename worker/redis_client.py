@@ -9,17 +9,22 @@ TASK_QUEUE = "xray:task_queue"
 RESULT_CHANNEL_PREFIX = "xray:result:"
 
 
+_BRPOP_TIMEOUT = 30
+
+
 class WorkerRedisClient:
     def __init__(self):
         self._client = redis.Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
             decode_responses=True,
+            socket_connect_timeout=5,
+            socket_keepalive=True,
         )
 
     def dequeue_task(self) -> dict | None:
-        """BRPOP으로 Queue에서 작업을 가져온다 (무한 대기, timeout=0)."""
-        result = self._client.brpop(TASK_QUEUE, timeout=0)
+        """BRPOP으로 Queue에서 작업을 가져온다."""
+        result = self._client.brpop(TASK_QUEUE, timeout=_BRPOP_TIMEOUT)
         if result is None:
             return None
         _, value = result

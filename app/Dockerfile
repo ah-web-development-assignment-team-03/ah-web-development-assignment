@@ -19,13 +19,9 @@ COPY pyproject.toml uv.lock ./
 # PyTorch wheels separately to keep the runtime image small.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /opt/venv \
-    && uv export --frozen --no-dev --no-hashes --no-emit-project \
-        | grep -viE '^(torch|torchvision|triton|pytorch-triton)([=<>~!; ]|$)|^(nvidia|cuda)-' \
+    && uv export --frozen --no-dev --no-hashes --no-emit-project --group app \
         > /tmp/requirements.txt \
-    && uv pip install --python /opt/venv -r /tmp/requirements.txt \
-    && uv pip install --python /opt/venv \
-        --index-url https://download.pytorch.org/whl/cpu \
-        torch torchvision
+    && uv pip install --python /opt/venv -r /tmp/requirements.txt
 
 FROM python:3.13-slim AS runtime
 
