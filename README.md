@@ -1,124 +1,94 @@
-# AH Web Development Assignment
+# 흉부 X-ray AI 진단 서비스 — 프로젝트 과정 정리
 
-AH 웹 개발 과제 공식 레포지토리입니다.
+> OZ AI 헬스케어 초격차 캠프 팀 프로젝트
+> 작성자: 김진형 (Team-03, 인프라·아키텍처 담당)
 
----
-
-## 기술 스택
-
-**Backend**
-- Python
-- FastAPI
-- SQLAlchemy (ORM)
-- Alembic (DB 마이그레이션)
-- pydantic-settings
-
-**Frontend**
-- HTML / CSS / JavaScript
+FastAPI 기반의 흉부 X-ray 폐렴 예측 AI 웹 서비스를 팀으로 개발하며 거친 전체 과정을 단계별로 정리한 문서입니다. 제가 직접 담당한 **아키텍처 설계**와 **도커 인프라 구축** 파트를 중심으로 서술했습니다.
 
 ---
 
-## 프로젝트 구조
+## 프로젝트 진행 단계
 
-```
-ah-web-development-assignment/
-├── .env.example                # 환경 변수 예시 파일
-├── .github/
-│   ├── ISSUE_TEMPLATE/         # 이슈 템플릿 모음
-│   └── PULL_REQUEST_TEMPLATE.md
-├── alembic/
-│   ├── env.py                  # Alembic 마이그레이션 환경 설정
-│   └── script.py.mako          # 마이그레이션 파일 템플릿
-├── alembic.ini                 # Alembic 설정 파일
-├── app/
-│   ├── main.py                 # FastAPI 앱 진입점
-│   ├── apis/                   # API 라우터
-│   ├── core/
-│   │   ├── config.py           # 앱 환경 변수 설정 (pydantic-settings)
-│   │   └── db/                 # DB 연결 및 Base 선언
-│   │       ├── databases.py    # DB 세션 설정
-│   │       └── models.py       # SQLAlchemy Base 모델
-│   ├── models/                 # SQLAlchemy ORM 모델
-│   ├── repositories/           # DB 접근 계층 (Repository 패턴)
-│   ├── schemas/                # 요청/응답 스키마 (Pydantic)
-│   └── services/               # 비즈니스 로직 계층
-├── docs/
-│   └── 1일차_team_rules.md
-├── docker-compose.yml          # Docker 컨테이너 설정
-├── pyproject.toml              # 프로젝트 의존성 및 설정
-├── static/
-│   ├── index.html              # 메인 HTML 페이지
-│   ├── app.js                  # 프론트엔드 앱 진입점 및 상태 관리
-│   ├── apis.js                 # API 호출 함수 모음
-│   ├── pages.js                # 페이지 렌더링 로직
-│   ├── utils.js                # 공통 유틸리티 함수
-│   ├── style.css               # 스타일시트
-│   └── templates/              # HTML 페이지 템플릿
-│       ├── admin-users.html
-│       ├── home.html
-│       ├── login.html
-│       ├── my-page.html
-│       ├── patient-create.html
-│       ├── patient-detail.html
-│       ├── patients.html
-│       ├── record-create.html
-│       ├── record-detail.html
-│       └── signup.html
-└── README.md
-```
+### 1. Team Rule 정의
+협업의 기본 규칙(커밋 컨벤션, 코드 리뷰 방식, 소통 채널 등)을 팀원들과 함께 정의했습니다.
+
+### 2. 사용자 요구사항 정의
+서비스가 충족해야 할 기능/비기능 요구사항을 정리했습니다. (예: 예측 API 3초 이내 응답 등)
+
+### 3. API 명세서 작성
+환자 관리, 진료 기록, 폐렴 예측 등 각 기능의 API 명세를 작성했습니다.
+
+### 4. Git & Github Branch 전략 구성
+`main` / `develop` / `feature` 브랜치 전략을 세우고, 모든 작업을 feature 브랜치에서 진행 후 PR로 병합하는 흐름을 확립했습니다.
+
+### 5. 프로젝트 세팅
+`uv` 기반 파이썬 환경, FastAPI 프로젝트 구조, MySQL 데이터베이스를 세팅했습니다. (개발 초기 SQLite에서 시작해 이후 MySQL로 마이그레이션)
+
+### 6. API 및 AI 워커 코드 작성 후 Branch 전략을 통한 코드 병합
+FastAPI 애플리케이션 코드와 AI 워커 코드를 각 담당자가 feature 브랜치에서 작성하고, PR·코드 리뷰를 거쳐 병합했습니다.
 
 ---
 
-## 아키텍처
+### ⭐ 7. 아키텍처 설계 및 적용 (담당)
 
-이 프로젝트는 **레이어드 아키텍처(Layered Architecture)** 를 기반으로 합니다.
+폐렴 예측 모델의 CPU 추론 시간이 약 1.7~2.0초로 확인되어, 이를 FastAPI 요청 흐름 안에서 직접 처리하면 **동시성 문제**(여러 요청이 몰릴 때 응답 지연)가 발생하는 것을 파악했습니다.
 
+이를 해결하기 위해 **Event-Driven Architecture(이벤트 기반 아키텍처)**를 설계했습니다.
+
+**핵심 설계**
+- **요청 처리(FastAPI)와 추론 수행(AI 워커)을 물리적으로 분리** — FastAPI는 요청을 받으면 작업을 큐에 등록만 하고 즉시 응답
+- **Redis를 메시지 브로커로 활용** — 작업 대기열(Queue) 관리
+- **AI 워커는 별도 프로세스**로 큐를 소비하여 추론 수행 후 결과를 DB에 저장
+
+**설계 흐름**
 ```
-[Frontend: static/]
-        ↕  HTTP
-[API Layer: app/]
-        │
-  ┌─────▼──────┐
-  │  schemas/  │  ← 요청/응답 데이터 검증
-  └─────┬──────┘
-        │
-  ┌─────▼──────┐
-  │  services/ │  ← 비즈니스 로직
-  └─────┬──────┘
-        │
-  ┌─────▼──────────┐
-  │ repositories/  │  ← DB 접근 (CRUD)
-  └─────┬──────────┘
-        │
-  ┌─────▼──────┐
-  │  models/   │  ← SQLAlchemy ORM 모델
-  └─────┬──────┘
-        │
-  ┌─────▼──────────┐
-  │  core/db/      │  ← DB 세션 및 Base 설정
-  └─────┬──────────┘
-        │
-   [Database]
+클라이언트 → FastAPI (작업 등록 후 즉시 응답) → Redis (작업 대기열)
+          → AI 워커 (추론 수행) → DB (결과 저장)
+          → 클라이언트 (폴링/콜백으로 결과 수신)
 ```
 
-## Alembic Migration Guide
+excalidraw로 위 구조를 도식화하고, `docs/9일차_동시성문제_해결을위한_아키텍처설계.md`에 학습 내용과 함께 문서화했습니다.
 
-이 프로젝트는 데이터베이스 마이그레이션을 위해 Alembic을 사용합니다.
+**설계 시 검토한 기술 비교**
+- Redis Streams vs Celery+Redis 를 비교 분석 (재시도·실패 처리, 학습 곡선, 운영 복잡도 관점)
 
-### 1. 마이그레이션 파일 생성 (자동 생성)
-모델(`app/models/`)이 변경된 경우 다음 명령어를 실행하여 마이그레이션 파일을 생성합니다.
-```bash
-uv run alembic revision --autogenerate -m "변경 내용 설명"
-```
+---
 
-### 2. 데이터베이스에 반영
-생성된 마이그레이션을 데이터베이스에 적용하려면 다음 명령어를 실행합니다.
-```bash
-uv run alembic upgrade head
-```
+### ⭐ 8. 도커 인프라 관련 파일 작성 (담당)
 
-### 3. 이전 상태로 되돌리기 (Rollback)
-마지막 마이그레이션을 취소하려면 다음 명령어를 실행합니다.
-```bash
-uv run alembic downgrade -1
-```
+7단계에서 설계한 아키텍처를 실제로 동작하는 컨테이너 환경으로 구축했습니다.
+
+**Redis 컨테이너 추가**
+- `docker-compose.yml`에 `redis:7-alpine` 서비스 추가 (볼륨·포트·헬스체크 구성)
+- `docker compose up -d redis`로 실행하여 컨테이너 healthy 상태 확인
+
+**AI 워커 컨테이너 추가**
+- FastAPI 내부가 아닌 독립 프로세스로 실행되도록 `ai-worker` 서비스 정의
+- Redis·MySQL이 준비된 뒤 시작하도록 `depends_on` + `condition: service_healthy` 설정
+
+**의존성 분리 (이미지 용량 최소화)**
+- `pyproject.toml`을 `dependency-groups`로 `app` / `ai` 분리
+- FastAPI 앱 이미지에는 무거운 torch 계열을 제외하고, AI 워커 이미지에만 포함
+- 공통으로 필요한 `redis` 패키지는 기본 의존성으로 관리
+
+**워커 Dockerfile 작성**
+- 멀티스테이지 빌드 + CPU 전용 PyTorch 설치 방식으로 워커 이미지 구성
+
+**협업 과정에서의 이슈 해결**
+- develop 최신 반영 시 `docker-compose.yml` 병합 충돌 발생
+- develop의 MySQL 헬스체크 개선안과 본인의 Redis/AI 워커 추가분을 **양쪽 모두 살리는 방향으로 수동 병합**
+- `docker compose config`로 문법 검증 후 PR 병합
+
+---
+
+### 9. AWS 배포
+구축한 컨테이너 환경을 AWS에 배포했습니다.
+
+### 10. QA 진행
+배포된 서비스의 기능 검증 및 버그 수정을 진행했습니다.
+
+---
+
+## 회고
+
+이번 프로젝트에서 저는 **아키텍처 설계 단계에서 나온 문서를 실제 인프라로 구현**하는 역할을 맡았습니다. 특히 동시성 문제를 해결하기 위한 FastAPI–AI 워커 분리 구조를 설계도로만 끝내지 않고, Docker Compose와 의존성 분리를 통해 실행 가능한 형태로 만드는 과정에서 인프라와 애플리케이션이 어떻게 맞물리는지 깊이 이해할 수 있었습니다. 또한 팀원들과 같은 파일을 수정하며 발생한 병합 충돌을 직접 해결하면서 Git 협업 역량도 함께 키울 수 있었습니다.
