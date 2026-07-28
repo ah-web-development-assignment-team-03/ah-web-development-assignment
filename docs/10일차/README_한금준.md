@@ -14,13 +14,13 @@
 | 항목 | 내용 |
 |---|---|
 | 코어 타임 | 평일 오후 3시 20분 ~ 4시. 진행 상황 공유 및 이슈 논의 |
-| 회의 방식 | 안건 사전 작성, 결정 사항은 Notion 또는 GitHub Issue에 기록 |
+| 회의 방식 | 안건 사전 작성, 결정 사항은 Notion 또는 GitHub Issue/PR에 기록 |
 | 불참 공유 | 사전 안내 원칙, 작업 상태와 예상 복귀 시점 작성 |
-| Git Branch | `main` 직접 push 금지, 모든 작업은 기능 브랜치 생성 후 PR로 병합 |
-| Commit 메시지 | `[#이슈번호] 타입: 변경 내용` 형식 준수 |
+| Git Branch | `develop` 직접 push 자제, 모든 작업은 기능 브랜치 생성 후 PR로 병합 |
+| Commit 메시지 | `[#이슈번호] 변경 내용` 형식 준수 |
 | Pull Request | 최소 1인 코드 리뷰 후 merge, merge 후 브랜치 삭제 |
-| 코드 리뷰 | 코드와 구현 방식만 검토, `[필수]` / `[제안]` / `[질문]` 구분 |
-| 업무 기록 | 담당자·상태·관련 PR을 Notion 또는 GitHub Issue에 기록 |
+| 코드 리뷰 | 코드와 구현 방식 검토, `[필수]` / `[제안]` / `[질문]` 구분 |
+| 업무 기록 | 담당자·상태·관련 PR을 Notion 또는 Discord에 기록 |
 
 ### 커밋 타입 규칙
 
@@ -446,11 +446,14 @@ PyTorch(약 2GB)를 AI 워커 이미지에만 설치하여 FastAPI 이미지 크
 ### 실행 명령어
 
 ```bash
+# 로컬 개발 서버 실행
+fastapi dev app/main.py
+
 # 이미지 빌드 및 전체 컨테이너 시작
-docker compose --env-file .env.example up --build -d
+docker compose up --build
 
 # 컨테이너 상태 확인
-docker compose --env-file .env.example ps
+docker compose ps
 ```
 
 ### 실행 결과 확인
@@ -468,7 +471,7 @@ docker compose --env-file .env.example ps
 
 ### 검증 환경
 
-- FastAPI 로컬 서버 실행 (`uvicorn app.main:app`)
+- FastAPI 로컬 서버 실행 (`fastapi dev app/main.py`)
 - 브라우저에서 `localhost:8000` 접속
 - Swagger UI (`/docs`)를 통한 API 직접 호출 병행
 
