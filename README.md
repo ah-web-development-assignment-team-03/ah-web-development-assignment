@@ -254,7 +254,7 @@ MySQL과 Redis에는 healthcheck를 적용하고, FastAPI와 AI 워커는 의존
 cp .env.example .env
 ```
 
-운영 환경에서는 `.env.example`의 기본 비밀번호를 사용하지 말고 DB 비밀번호와 `JWT_SECRET_KEY`를 안전한 값으로 변경해야 합니다.
+`.env.example`에는 실제 자격 증명을 입력하거나 커밋하지 않습니다. 로컬 `.env`와 운영 환경 변수에는 각각 고유한 DB 비밀번호와 충분히 긴 임의의 `JWT_SECRET_KEY`를 설정하고, 운영 비밀값은 AWS Secrets Manager 또는 Parameter Store와 같은 비밀 관리 서비스를 사용합니다.
 
 ### 4.3 Docker Compose 실행
 
